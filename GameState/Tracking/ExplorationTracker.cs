@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -5,10 +6,22 @@ using TerrariaFriend.GameState.Persistence;
 
 namespace TerrariaFriend.GameState.Tracking
 {
-	// 在服务端记录玩家首次到达的关键区域。
+	// 记录关键区域并在服务端保存多人探索格网
 	public class ExplorationTracker : ModSystem
 	{
 		private const uint CheckIntervalTicks = 60;
+		private const float PixelsPerTile = 16f;
+		private readonly Dictionary<int, ExplorationCell> _lastServerCells = new Dictionary<int, ExplorationCell>();
+
+		public override void OnWorldLoad()
+		{
+			_lastServerCells.Clear();
+		}
+
+		public override void OnWorldUnload()
+		{
+			_lastServerCells.Clear();
+		}
 
 		public override void PostUpdatePlayers()
 		{
@@ -30,7 +43,28 @@ namespace TerrariaFriend.GameState.Tracking
 				if (player.ZoneShimmer) worldState.MarkVisited("Shimmer");
 				if (player.ZoneSnow) worldState.MarkVisited("Snow");
 				if (player.ZoneDesert) worldState.MarkVisited("Desert");
+
+				if (Main.netMode == NetmodeID.Server)
+				{
+					TrackServerCell(player, worldState);
+				}
 			}
+		}
+
+		private void TrackServerCell(Player player, CompanionWorldState worldState)
+		{
+			ExplorationCell cell = new ExplorationCell(
+				(int)(player.Center.X / PixelsPerTile / ExplorationGridTracker.ExplorationCellSize),
+				(int)(player.Center.Y / PixelsPerTile / ExplorationGridTracker.ExplorationCellSize));
+
+			if (_lastServerCells.TryGetValue(player.whoAmI, out ExplorationCell lastCell)
+				&& lastCell == cell)
+			{
+				return;
+			}
+
+			_lastServerCells[player.whoAmI] = cell;
+			worldState.MarkCellVisited(cell);
 		}
 	}
 }

@@ -6,5 +6,7 @@ namespace TerrariaFriend.Triggering
 	public sealed record GameEvent(
 		GameEventType EventType,
 		string? SubjectId = null,
-		string? SubjectName = null);
+		string? SubjectName = null,
+		int? CellX = null,
+		int? CellY = null);
 }

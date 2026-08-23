@@ -23,7 +23,6 @@ namespace TerrariaFriend.Triggering
 			List<GameEvent> events = new List<GameEvent>();
 
 			DetectBossChanges(previous, current, events);
-			DetectRegionEntries(previous, current, events);
 			DetectWorldEventChanges(previous, current, events);
 			DetectSpecialNpcAppearances(previous, current, events);
 			DetectProgressChanges(previous, current, events);
@@ -58,38 +57,6 @@ namespace TerrariaFriend.Triggering
 				if (!currentBosses.ContainsKey(typeId))
 				{
 					events.Add(new GameEvent(GameEventType.BossEnded, typeId.ToString(), boss.Name));
-				}
-			}
-		}
-
-		private static void DetectRegionEntries(
-			GameSnapshot previous,
-			GameSnapshot current,
-			List<GameEvent> events)
-		{
-			HashSet<string> previousBiomes = new HashSet<string>(previous.Scene.Biomes);
-			foreach (string biome in current.Scene.Biomes)
-			{
-				if (!previousBiomes.Contains(biome))
-				{
-					events.Add(new GameEvent(GameEventType.RegionEntered, $"Biome:{biome}", biome));
-				}
-			}
-
-			if (previous.Scene.Layer != current.Scene.Layer)
-			{
-				events.Add(new GameEvent(
-					GameEventType.RegionEntered,
-					$"Layer:{current.Scene.Layer}",
-					current.Scene.Layer));
-			}
-
-			HashSet<string> previousSpecialScenes = new HashSet<string>(previous.Scene.SpecialScenes);
-			foreach (string scene in current.Scene.SpecialScenes)
-			{
-				if (!previousSpecialScenes.Contains(scene))
-				{
-					events.Add(new GameEvent(GameEventType.RegionEntered, $"SpecialScene:{scene}", scene));
 				}
 			}
 		}
@@ -153,11 +120,6 @@ namespace TerrariaFriend.Triggering
 				previous.Progress.WorldMilestones,
 				current.Progress.WorldMilestones,
 				"WorldMilestone",
-				events);
-			DetectNewProgressItems(
-				previous.Progress.VisitedRegions,
-				current.Progress.VisitedRegions,
-				"VisitedRegion",
 				events);
 		}
 

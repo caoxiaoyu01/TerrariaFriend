@@ -8,7 +8,7 @@ namespace TerrariaFriend.Triggering
 		PlayerDied,
 		BossSpawned,
 		BossEnded,
-		RegionEntered,
+		NewAreaDiscovered,
 		WorldEventStarted,
 		WorldEventEnded,
 		SpecialNpcAppeared,

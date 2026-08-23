@@ -5,16 +5,18 @@ using System.Collections.Concurrent;
 
 namespace TerrariaFriend.Triggering
 {
-	// 统一生成 TriggerEvent；未来通信层从队列读取并发送给 Python。
+	// 统一生成 TriggerEvent 并写入通信入口队列
 	public sealed class TriggerDispatcher
 	{
+		// 创建 trigger 事件队列
 		private readonly ConcurrentQueue<TriggerEvent> _pending = new ConcurrentQueue<TriggerEvent>();
 
 		public event Action<TriggerEvent>? TriggerDispatched;
 
 		public int PendingCount => _pending.Count;
 
-		public TriggerEvent DispatchUserQuery(string query)
+		// 三种 triggerEvent -> event 实例
+		public TriggerEvent DispatchUserQuery(string query, VitalsContext vitals)
 		{
 			if (string.IsNullOrWhiteSpace(query))
 			{
@@ -25,24 +27,32 @@ namespace TerrariaFriend.Triggering
 				TriggerType.USER_QUERY,
 				DateTimeOffset.UtcNow,
 				TriggerPriority.HIGH,
+				vitals,
 				UserQuery: query));
 		}
 
-		public TriggerEvent DispatchGameEvent(GameEvent gameEvent)
+		public TriggerEvent DispatchGameEvent(
+			GameEvent gameEvent,
+			GameEventContext eventContext,
+			VitalsContext vitals)
 		{
 			return Dispatch(new TriggerEvent(
 				TriggerType.GAME_EVENT,
 				DateTimeOffset.UtcNow,
-				GetPriority(gameEvent.EventType),
-				GameEvent: gameEvent));
+				TriggerPriority.NORMAL,
+				vitals,
+				GameEvent: gameEvent,
+				EventContext: eventContext));
 		}
 
-		public TriggerEvent DispatchPeriodic()
+		public TriggerEvent DispatchPeriodic(PeriodicSummary summary, VitalsContext vitals)
 		{
 			return Dispatch(new TriggerEvent(
 				TriggerType.PERIODIC,
 				DateTimeOffset.UtcNow,
-				TriggerPriority.LOW));
+				TriggerPriority.LOW,
+				vitals,
+				PeriodicSummary: summary));
 		}
 
 		public bool TryDequeue(out TriggerEvent? trigger)
@@ -57,21 +67,11 @@ namespace TerrariaFriend.Triggering
 
 		private TriggerEvent Dispatch(TriggerEvent trigger)
 		{
+			// 放入队列
 			_pending.Enqueue(trigger);
 			TriggerDispatched?.Invoke(trigger);
 			return trigger;
 		}
 
-		private static TriggerPriority GetPriority(GameEventType eventType)
-		{
-			return eventType switch
-			{
-				GameEventType.PlayerDied => TriggerPriority.HIGH,
-				GameEventType.BossSpawned => TriggerPriority.HIGH,
-				GameEventType.BossEnded => TriggerPriority.HIGH,
-				GameEventType.ProgressMilestoneChanged => TriggerPriority.HIGH,
-				_ => TriggerPriority.NORMAL
-			};
-		}
 	}
 }

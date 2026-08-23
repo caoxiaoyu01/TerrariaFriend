@@ -7,9 +7,7 @@ using TerrariaFriend.Common.UI;
 
 namespace TerrariaFriend.Common.Systems
 {
-	/// <summary>
-	/// Owns, updates, and draws the Agent message UI on game clients.
-	/// </summary>
+	// 管理客户端 Companion UI 的创建 更新和绘制
 	[Autoload(Side = ModSide.Client)]
 	public class AgentMessageUISystem : ModSystem
 	{
@@ -61,10 +59,8 @@ namespace TerrariaFriend.Common.Systems
 				InterfaceScaleType.UI));
 		}
 
-		/// <summary>
-		/// Main entry point for future Agent output.
-		/// Call this on the game client after a complete message is ready.
-		/// </summary>
+		// Agent 完整消息进入现有显示区域的统一入口
+		// 只应在游戏客户端主线程调用
 		public static void ShowMessage(string message)
 		{
 			if (Main.dedServ)

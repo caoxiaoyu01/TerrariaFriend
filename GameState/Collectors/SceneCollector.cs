@@ -15,6 +15,9 @@ namespace TerrariaFriend.GameState.Collectors
 			SceneMetrics metrics = Main.SceneMetrics;
 
 			if (player.ZoneGraveyard) specialScenes.Add("Graveyard");
+			if (player.ZoneDungeon) specialScenes.Add("Dungeon");
+			if (player.ZoneLihzhardTemple) specialScenes.Add("Jungle Temple");
+			if (player.ZoneShimmer) specialScenes.Add("Shimmer");
 			if (metrics.HasCampfire) nearbyBuffs.Add("Campfire");
 			if (metrics.HasHeartLantern) nearbyBuffs.Add("Heart Lantern");
 

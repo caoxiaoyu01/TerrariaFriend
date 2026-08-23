@@ -4,10 +4,7 @@ using Terraria.UI;
 
 namespace TerrariaFriend.Common.UI
 {
-	/// <summary>
-	/// The visual part of the Terraria Friend message box.
-	/// Keep Agent/network logic outside this class and pass completed text to SetMessage.
-	/// </summary>
+	// Companion 消息框只负责显示 Agent 回复
 	public class AgentMessageUIState : UIState
 	{
 		private const float HorizontalMargin = 20f;
@@ -22,9 +19,8 @@ namespace TerrariaFriend.Common.UI
 		{
 			UIPanel panel = new UIPanel();
 
-			// Use alignment as the anchor, then apply a small margin from that anchor.
-			// Width is responsive (25% of the UI canvas minus the side margins),
-			// while MinWidth/MaxWidth keep it readable on very small or large screens.
+			// 左下角对齐
+			// 百分比宽度配合最小最大宽度适配不同分辨率
 			panel.HAlign = 0f;
 			panel.VAlign = 1f;
 			panel.Left.Set(HorizontalMargin, 0f);
