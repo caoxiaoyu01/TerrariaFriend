@@ -12,6 +12,9 @@ namespace TerrariaFriend.Common.Systems
 	{
 		public override void Load()
 		{
+			// 在原生聊天开关处理完成后设置默认路由标记
+			On_Main.DoUpdate_Enter_ToggleChat += DoUpdateEnterToggleChat;
+
 			// 多人游戏在客户端发送消息前经过此入口
 			On_ChatHelper.SendChatMessageFromClient += SendChatMessageFromClient;
 
@@ -21,8 +24,21 @@ namespace TerrariaFriend.Common.Systems
 
 		public override void Unload()
 		{
+			On_Main.DoUpdate_Enter_ToggleChat -= DoUpdateEnterToggleChat;
 			On_ChatHelper.SendChatMessageFromClient -= SendChatMessageFromClient;
 			On_ChatCommandProcessor.ProcessIncomingMessage -= ProcessIncomingMessage;
+		}
+
+		private static void DoUpdateEnterToggleChat(On_Main.orig_DoUpdate_Enter_ToggleChat orig)
+		{
+			bool wasChatOpen = Main.drawingPlayerChat;
+			orig();
+
+			// 只在聊天框刚打开且内容为空时补上路由标记
+			if (!wasChatOpen && Main.drawingPlayerChat && string.IsNullOrEmpty(Main.chatText))
+			{
+				Main.chatText = "@";
+			}
 		}
 
 		private static void SendChatMessageFromClient(
