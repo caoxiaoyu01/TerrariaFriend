@@ -33,6 +33,7 @@ class GameEventType(str, Enum):
     BOSS_SPAWNED = "BossSpawned"
     BOSS_ENDED = "BossEnded"
     NEW_AREA_DISCOVERED = "NewAreaDiscovered"
+    SCENE_FEATURE_ENTERED = "SceneFeatureEntered"
     WORLD_EVENT_STARTED = "WorldEventStarted"
     WORLD_EVENT_ENDED = "WorldEventEnded"
     SPECIAL_NPC_APPEARED = "SpecialNpcAppeared"
@@ -53,12 +54,14 @@ class EventContext(CamelModel):
     progression_stage: str | None = None
     occurrence_count: int | None = Field(default=None, ge=0)
     active_events: list[str] | None = None
-    biome: str | None = None
+    biomes: list[str] | None = None
     layer: str | None = None
-    special_scene: str | None = None
-    previous_biome: str | None = None
+    mini_biomes: list[str] | None = None
+    special_areas: list[str] | None = None
+    previous_biomes: list[str] | None = None
     previous_layer: str | None = None
-    previous_special_scene: str | None = None
+    previous_mini_biomes: list[str] | None = None
+    previous_special_areas: list[str] | None = None
     is_nearby: bool | None = None
     boss_active: bool | None = None
     boss_name: str | None = None

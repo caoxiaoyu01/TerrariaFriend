@@ -6,6 +6,7 @@ namespace TerrariaFriend.GameState.Snapshots
 	public sealed record SceneSnapshot(
 		IReadOnlyList<string> Biomes,
 		string Layer,
-		IReadOnlyList<string> SpecialScenes,
+		IReadOnlyList<string> MiniBiomes,
+		IReadOnlyList<string> SpecialAreas,
 		IReadOnlyList<string> NearbyBuffs);
 }

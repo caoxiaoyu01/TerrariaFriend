@@ -35,6 +35,7 @@ class DecisionGameEvent(BaseModel):
             GameEventType.PLAYER_DIED: ("player_id", "player_name"),
             GameEventType.BOSS_SPAWNED: ("boss_type_id", "boss_name"),
             GameEventType.BOSS_ENDED: ("boss_type_id", "boss_name"),
+            GameEventType.SCENE_FEATURE_ENTERED: ("feature_category", "feature_name"),
             GameEventType.WORLD_EVENT_STARTED: ("event_id", "event_name"),
             GameEventType.WORLD_EVENT_ENDED: ("event_id", "event_name"),
             GameEventType.SPECIAL_NPC_APPEARED: ("npc_type_id", "npc_name"),

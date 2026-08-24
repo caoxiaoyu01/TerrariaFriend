@@ -23,6 +23,7 @@ namespace TerrariaFriend.Triggering
 			List<GameEvent> events = new List<GameEvent>();
 
 			DetectBossChanges(previous, current, events);
+			DetectSceneFeatureEntries(previous, current, events);
 			DetectWorldEventChanges(previous, current, events);
 			DetectSpecialNpcAppearances(previous, current, events);
 			DetectProgressChanges(previous, current, events);
@@ -34,6 +35,42 @@ namespace TerrariaFriend.Triggering
 		public void Reset()
 		{
 			_previous = null;
+		}
+
+		private static void DetectSceneFeatureEntries(
+			GameSnapshot previous,
+			GameSnapshot current,
+			List<GameEvent> events)
+		{
+			DetectNewSceneFeatures(
+				previous.Scene.MiniBiomes,
+				current.Scene.MiniBiomes,
+				"MINI_BIOME",
+				events);
+			DetectNewSceneFeatures(
+				previous.Scene.SpecialAreas,
+				current.Scene.SpecialAreas,
+				"SPECIAL_AREA",
+				events);
+		}
+
+		private static void DetectNewSceneFeatures(
+			IReadOnlyList<string> previous,
+			IReadOnlyList<string> current,
+			string category,
+			List<GameEvent> events)
+		{
+			HashSet<string> previousFeatures = new HashSet<string>(previous);
+			foreach (string feature in current)
+			{
+				if (!previousFeatures.Contains(feature))
+				{
+					events.Add(new GameEvent(
+						GameEventType.SceneFeatureEntered,
+						category,
+						feature));
+				}
+			}
 		}
 
 		private static void DetectBossChanges(

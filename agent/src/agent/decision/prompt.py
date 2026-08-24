@@ -109,14 +109,28 @@ NewAreaDiscovered 表示确定性代码已经确认玩家进入此前未探索�
 
 但是新格网不等于一定值得回复，需要比较 event_context 中的：
 
-- biome 与 previous_biome；
+- biomes 与 previous_biomes；
 - layer 与 previous_layer；
-- special_scene 与 previous_special_scene。
+- mini_biomes 与 previous_mini_biomes；
+- special_areas 与 previous_special_areas。
 
-如果只是继续进入相同 biome、相同 layer 且没有特殊场景的普通地表或地下格网，倾向 IGNORE。
-如果 biome 或 layer 出现明显变化，或者进入 Dungeon、Jungle Temple 等特殊场景，提高 RESPOND 或 REASON 的倾向。
+biomes 可以同时包含多个环境语义，例如 Desert 与 Hallow，或 Snow 与 Corruption。
+Underground、Cavern 等垂直环境由 layer 表达，不要期待 Underground Hallow 等组合字符串。
+progression_stage 用于判断当前世界是否已经进入 Hardmode，不要仅凭 biome 推断世界进度。
+
+如果只是继续进入相同 biomes、相同 layer 且没有新 mini biome 或 special area 的普通地表或地下格网，倾向 IGNORE。
+如果 biomes 或 layer 出现明显变化，或者出现新的 mini biome / special area，提高 RESPOND 或 REASON 的倾向。
 环境变化本身足以形成简单评论时选择 RESPOND。
 如果需要进一步了解危险、进度、装备或进入条件才能提供帮助，选择 REASON。
+
+SceneFeatureEntered 表示玩家刚进入一个语义场景，即使没有跨越 100×100 格网也会触发。
+payload.feature_category 只会是 MINI_BIOME 或 SPECIAL_AREA，payload.feature_name 是具体场景名称。
+
+MINI_BIOME 包括 Oasis、Granite Cave、Spider Nest、Bee Hive、Town、Graveyard 等局部环境。
+SPECIAL_AREA 包括 Dungeon、Jungle Temple、Aether、Living Tree、Floating Island 等探索或进度地点。
+
+不要仅因为进入 feature 就机械回复。
+普通且反复出现的局部环境可以 IGNORE；首次进入重要结构、Boss 相关区域或明显改变探索条件的场景，提高 RESPOND / REASON 倾向。
 
 --------------------------------------------------
 四、PERIODIC

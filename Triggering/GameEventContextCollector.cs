@@ -18,6 +18,7 @@ namespace TerrariaFriend.Triggering
 				GameEventType.BossSpawned => new GameEventContext(
 					NearbyEnemyCount: snapshot.Combat.NearbyEnemyCount),
 				GameEventType.BossEnded => new GameEventContext(),
+				GameEventType.SceneFeatureEntered => CaptureSceneContext(snapshot),
 				GameEventType.WorldEventStarted => new GameEventContext(
 					OccurrenceCount: GetWorldEventOccurrenceCount(gameEvent),
 					ActiveEvents: GetActiveEvents(snapshot)),
@@ -25,12 +26,12 @@ namespace TerrariaFriend.Triggering
 					OccurrenceCount: CompleteWorldEventOccurrence(gameEvent),
 					ActiveEvents: GetActiveEvents(snapshot)),
 				GameEventType.SpecialNpcAppeared => new GameEventContext(
-					Biome: GetBiome(snapshot),
+					Biomes: snapshot.Scene.Biomes,
 					IsNearby: GetSpecialNpcNearby(gameEvent, snapshot)),
 				GameEventType.ProgressMilestoneChanged => new GameEventContext(
-					Biome: GetBiome(snapshot)),
+					Biomes: snapshot.Scene.Biomes),
 				GameEventType.PlayerDied => new GameEventContext(
-					Biome: GetBiome(snapshot),
+					Biomes: snapshot.Scene.Biomes,
 					NearbyEnemyCount: snapshot.Combat.NearbyEnemyCount,
 					BossActive: snapshot.Combat.BossActive,
 					BossName: GetBossName(snapshot),
@@ -38,6 +39,16 @@ namespace TerrariaFriend.Triggering
 					LastDamageSource: snapshot.Combat.RecentDamage.LastDamageSource),
 				_ => throw new ArgumentOutOfRangeException(nameof(gameEvent.EventType))
 			};
+		}
+
+		private static GameEventContext CaptureSceneContext(GameSnapshot snapshot)
+		{
+			return new GameEventContext(
+				ProgressionStage: snapshot.Progress.WorldMilestones.LastOrDefault() ?? "Pre-Hardmode",
+				Biomes: snapshot.Scene.Biomes,
+				Layer: snapshot.Scene.Layer,
+				MiniBiomes: snapshot.Scene.MiniBiomes,
+				SpecialAreas: snapshot.Scene.SpecialAreas);
 		}
 
 		private static int GetWorldEventOccurrenceCount(GameEvent gameEvent)
@@ -50,11 +61,6 @@ namespace TerrariaFriend.Triggering
 		{
 			return ModContent.GetInstance<CompanionWorldState>()
 				.CompleteWorldEventOccurrence(gameEvent.SubjectId ?? gameEvent.SubjectName ?? "Unknown");
-		}
-
-		private static string GetBiome(GameSnapshot snapshot)
-		{
-			return snapshot.Scene.Biomes.FirstOrDefault() ?? snapshot.Scene.Layer;
 		}
 
 		private static string[] GetActiveEvents(GameSnapshot snapshot)

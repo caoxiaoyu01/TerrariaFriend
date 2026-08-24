@@ -150,10 +150,14 @@ class DecisionNodeTests(unittest.IsolatedAsyncioTestCase):
                         payload={"cell_x": 18, "cell_y": 10},
                     ),
                     event_context=EventContext(
-                        biome="Forest",
+                        biomes=["Forest"],
                         layer="Cavern",
-                        previous_biome="Forest",
+                        mini_biomes=[],
+                        special_areas=[],
+                        previous_biomes=["Forest"],
                         previous_layer="Cavern",
+                        previous_mini_biomes=[],
+                        previous_special_areas=[],
                     ),
                 ),
                 DecisionAction.IGNORE,
@@ -167,7 +171,7 @@ class DecisionNodeTests(unittest.IsolatedAsyncioTestCase):
                         payload={"player_name": "Player"},
                     ),
                     event_context=EventContext(
-                        biome="Forest",
+                        biomes=["Forest"],
                         nearby_enemy_count=1,
                         boss_active=False,
                         damage_taken_last_5s=20,
@@ -208,11 +212,15 @@ class DecisionNodeTests(unittest.IsolatedAsyncioTestCase):
                 cell_y=9,
             ),
             event_context=EventContext(
-                biome="Jungle",
-                layer="Underground",
-                special_scene="Jungle Temple",
-                previous_biome="Jungle",
-                previous_layer="Underground",
+                progression_stage="Hardmode Unlocked",
+                biomes=["Jungle"],
+                layer="Cavern",
+                mini_biomes=[],
+                special_areas=["Jungle Temple"],
+                previous_biomes=["Jungle"],
+                previous_layer="Cavern",
+                previous_mini_biomes=[],
+                previous_special_areas=[],
             ),
         )
 
@@ -222,7 +230,36 @@ class DecisionNodeTests(unittest.IsolatedAsyncioTestCase):
             {"cell_x": 18, "cell_y": 9},
             decision_input.game_event.payload,
         )
-        self.assertEqual("Jungle Temple", decision_input.event_context.special_scene)
+        self.assertEqual(
+            ["Jungle Temple"],
+            decision_input.event_context.special_areas,
+        )
+
+    def test_scene_feature_subject_is_mapped_to_payload(self) -> None:
+        trigger = TriggerRequest(
+            trigger_type=TriggerType.GAME_EVENT,
+            timestamp=datetime.now(timezone.utc),
+            priority=TriggerPriority.NORMAL,
+            vitals=calm_vitals(),
+            game_event=GameEventRequest(
+                event_type=GameEventType.SCENE_FEATURE_ENTERED,
+                subject_id="MINI_BIOME",
+                subject_name="Bee Hive",
+            ),
+            event_context=EventContext(
+                biomes=["Jungle"],
+                layer="Cavern",
+                mini_biomes=["Bee Hive"],
+                special_areas=[],
+            ),
+        )
+
+        decision_input = DecisionInput.from_trigger(trigger)
+
+        self.assertEqual(
+            {"feature_category": "MINI_BIOME", "feature_name": "Bee Hive"},
+            decision_input.game_event.payload,
+        )
 
 
 class DecisionRouteTests(unittest.TestCase):
@@ -313,6 +350,46 @@ class DecisionRouteTests(unittest.TestCase):
                     "eventContext": {
                         "occurrenceCount": 0,
                         "activeEvents": ["BloodMoon", "PirateInvasion"],
+                    },
+                },
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("IGNORE", response.json()["action"])
+        self.assertTrue(response.json()["success"])
+
+    def test_route_accepts_new_area_scene_collections(self) -> None:
+        app.dependency_overrides[get_decision_node] = lambda: DecisionNode(
+            FakeDecisionModelClient()
+        )
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/agent/trigger",
+                json={
+                    "triggerType": "GAME_EVENT",
+                    "timestamp": "2026-08-23T12:00:00Z",
+                    "priority": "NORMAL",
+                    "vitals": {
+                        "hpRatio": 0.8,
+                        "hpDelta": 0.0,
+                        "inCombat": False,
+                    },
+                    "gameEvent": {
+                        "eventType": "NewAreaDiscovered",
+                        "cellX": 18,
+                        "cellY": 9,
+                    },
+                    "eventContext": {
+                        "progressionStage": "Hardmode Unlocked",
+                        "biomes": ["Jungle"],
+                        "layer": "Cavern",
+                        "miniBiomes": [],
+                        "specialAreas": ["Jungle Temple"],
+                        "previousBiomes": ["Jungle"],
+                        "previousLayer": "Cavern",
+                        "previousMiniBiomes": [],
+                        "previousSpecialAreas": [],
                     },
                 },
             )

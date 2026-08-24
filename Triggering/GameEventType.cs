@@ -9,6 +9,7 @@ namespace TerrariaFriend.Triggering
 		BossSpawned,
 		BossEnded,
 		NewAreaDiscovered,
+		SceneFeatureEntered,
 		WorldEventStarted,
 		WorldEventEnded,
 		SpecialNpcAppeared,

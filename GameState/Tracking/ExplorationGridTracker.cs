@@ -61,12 +61,15 @@ namespace TerrariaFriend.GameState.Tracking
 				CellX: currentCell.X,
 				CellY: currentCell.Y);
 			eventContext = new GameEventContext(
-				Biome: currentEnvironment.Biome,
+				ProgressionStage: snapshot.Progress.WorldMilestones.LastOrDefault() ?? "Pre-Hardmode",
+				Biomes: currentEnvironment.Biomes,
 				Layer: currentEnvironment.Layer,
-				SpecialScene: currentEnvironment.SpecialScene,
-				PreviousBiome: previousEnvironment.Biome,
+				MiniBiomes: currentEnvironment.MiniBiomes,
+				SpecialAreas: currentEnvironment.SpecialAreas,
+				PreviousBiomes: previousEnvironment.Biomes,
 				PreviousLayer: previousEnvironment.Layer,
-				PreviousSpecialScene: previousEnvironment.SpecialScene);
+				PreviousMiniBiomes: previousEnvironment.MiniBiomes,
+				PreviousSpecialAreas: previousEnvironment.SpecialAreas);
 			return true;
 		}
 
@@ -87,9 +90,10 @@ namespace TerrariaFriend.GameState.Tracking
 		private static SceneEnvironment CaptureEnvironment(SceneSnapshot scene)
 		{
 			return new SceneEnvironment(
-				scene.Biomes.FirstOrDefault(),
+				scene.Biomes.ToArray(),
 				scene.Layer,
-				scene.SpecialScenes.FirstOrDefault());
+				scene.MiniBiomes.ToArray(),
+				scene.SpecialAreas.ToArray());
 		}
 
 		private bool MarkCellVisited(ExplorationCell cell)
@@ -100,8 +104,9 @@ namespace TerrariaFriend.GameState.Tracking
 		}
 
 		private sealed record SceneEnvironment(
-			string? Biome,
+			IReadOnlyList<string> Biomes,
 			string Layer,
-			string? SpecialScene);
+			IReadOnlyList<string> MiniBiomes,
+			IReadOnlyList<string> SpecialAreas);
 	}
 }
