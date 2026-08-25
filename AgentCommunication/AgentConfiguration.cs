@@ -7,7 +7,7 @@ namespace TerrariaFriend.AgentCommunication
 	{
 		public static readonly Uri TriggerEndpoint = new Uri("http://127.0.0.1:8000/agent/trigger");
 
-		// C# → Python HTTP 请求的最长等待时间 30 秒
-		public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+		// Reasoning Loop 最多包含四轮模型调用
+		public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(120);
 	}
 }

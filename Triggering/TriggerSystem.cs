@@ -48,19 +48,27 @@ namespace TerrariaFriend.Triggering
 					_dispatcher.DispatchGameEvent(
 						explorationEvent!,
 						explorationContext!,
-						CaptureVitals(snapshot));
+						CaptureVitals(snapshot),
+						snapshot);
 				}
 
 				foreach (GameEvent gameEvent in _eventDetector.Detect(snapshot))
 				{
 					GameEventContext context = GameEventContextCollector.Capture(gameEvent, snapshot);
-					_dispatcher.DispatchGameEvent(gameEvent, context, CaptureVitals(snapshot));
+					_dispatcher.DispatchGameEvent(
+						gameEvent,
+						context,
+						CaptureVitals(snapshot),
+						snapshot);
 				}
 			}
 
 			if (periodicDue)
 			{
-				_dispatcher.DispatchPeriodic(CreatePeriodicSummary(snapshot), CaptureVitals(snapshot));
+				_dispatcher.DispatchPeriodic(
+					CreatePeriodicSummary(snapshot),
+					CaptureVitals(snapshot),
+					snapshot);
 			}
 		}
 
@@ -70,7 +78,10 @@ namespace TerrariaFriend.Triggering
 			TriggerSystem system = ModContent.GetInstance<TriggerSystem>();
 			system.Mod.Logger.Info($"[UserQuery] submitted: \"{query}\"");
 			GameSnapshot snapshot = GameStateCollector.Capture();
-			return system._dispatcher.DispatchUserQuery(query, system.CaptureVitals(snapshot));
+			return system._dispatcher.DispatchUserQuery(
+				query,
+				system.CaptureVitals(snapshot),
+				snapshot);
 		}
 
 		// Hook 产生的游戏事件也统一进入 Dispatcher
@@ -80,7 +91,11 @@ namespace TerrariaFriend.Triggering
 			GameSnapshot snapshot = GameStateCollector.Capture();
 			GameEventContext context = GameEventContextCollector.Capture(gameEvent, snapshot);
 			TriggerSystem system = ModContent.GetInstance<TriggerSystem>();
-			return system._dispatcher.DispatchGameEvent(gameEvent, context, system.CaptureVitals(snapshot));
+			return system._dispatcher.DispatchGameEvent(
+				gameEvent,
+				context,
+				system.CaptureVitals(snapshot),
+				snapshot);
 		}
 
 		// 未来 HTTP/WebSocket transport 从此处消费待发送事件

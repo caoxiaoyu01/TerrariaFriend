@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
@@ -16,7 +17,10 @@ namespace TerrariaFriend.Triggering
 		public int PendingCount => _pending.Count;
 
 		// 三种 triggerEvent -> event 实例
-		public TriggerEvent DispatchUserQuery(string query, VitalsContext vitals)
+		public TriggerEvent DispatchUserQuery(
+			string query,
+			VitalsContext vitals,
+			GameSnapshot snapshot)
 		{
 			if (string.IsNullOrWhiteSpace(query))
 			{
@@ -28,13 +32,15 @@ namespace TerrariaFriend.Triggering
 				DateTimeOffset.UtcNow,
 				TriggerPriority.HIGH,
 				vitals,
-				UserQuery: query));
+				UserQuery: query,
+				GameSnapshot: snapshot));
 		}
 
 		public TriggerEvent DispatchGameEvent(
 			GameEvent gameEvent,
 			GameEventContext eventContext,
-			VitalsContext vitals)
+			VitalsContext vitals,
+			GameSnapshot snapshot)
 		{
 			return Dispatch(new TriggerEvent(
 				TriggerType.GAME_EVENT,
@@ -42,17 +48,22 @@ namespace TerrariaFriend.Triggering
 				TriggerPriority.NORMAL,
 				vitals,
 				GameEvent: gameEvent,
-				EventContext: eventContext));
+				EventContext: eventContext,
+				GameSnapshot: snapshot));
 		}
 
-		public TriggerEvent DispatchPeriodic(PeriodicSummary summary, VitalsContext vitals)
+		public TriggerEvent DispatchPeriodic(
+			PeriodicSummary summary,
+			VitalsContext vitals,
+			GameSnapshot snapshot)
 		{
 			return Dispatch(new TriggerEvent(
 				TriggerType.PERIODIC,
 				DateTimeOffset.UtcNow,
 				TriggerPriority.LOW,
 				vitals,
-				PeriodicSummary: summary));
+				PeriodicSummary: summary,
+				GameSnapshot: snapshot));
 		}
 
 		public bool TryDequeue(out TriggerEvent? trigger)

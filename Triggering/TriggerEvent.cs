@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
@@ -13,6 +14,7 @@ namespace TerrariaFriend.Triggering
 		GameEvent? GameEvent = null,
 		GameEventContext? EventContext = null,
 		string? UserQuery = null,  // 玩家问题
-		PeriodicSummary? PeriodicSummary = null
+		PeriodicSummary? PeriodicSummary = null,
+		GameSnapshot? GameSnapshot = null  // REASON Tool 的只读数据源
 		);
 }
