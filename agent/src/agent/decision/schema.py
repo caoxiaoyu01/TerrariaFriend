@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -98,6 +99,26 @@ class DecisionInput(BaseModel):
             event_context=trigger.event_context,
             periodic_summary=trigger.periodic_summary,
         )
+
+    def to_prompt_payload(self) -> dict[str, Any]:
+        # 只发送当前 Trigger 对应的紧凑动态字段
+        payload: dict[str, Any] = {"trigger_type": self.trigger_type.value}
+        if self.trigger_type is TriggerType.USER_QUERY:
+            payload["query"] = self.user_query
+        elif self.trigger_type is TriggerType.GAME_EVENT:
+            payload["event_type"] = self.game_event.event_type.value
+            payload["payload"] = self.game_event.payload
+            payload["event_context"] = self.event_context.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+        else:
+            payload["summary"] = self.periodic_summary.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+        payload["vitals"] = self.vitals.model_dump(mode="json")
+        return payload
 
 
 # 模型输出必须通过 Pydantic 校验后才能进入 Route

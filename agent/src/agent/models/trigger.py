@@ -1,17 +1,11 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from agent.models.game_snapshot import GameSnapshot
+from agent.models.trigger_base import CamelModel
 
-def to_camel(value: str) -> str:
-    first, *rest = value.split("_")
-    return first + "".join(part.capitalize() for part in rest)
-
-
-class CamelModel(BaseModel):
-    # 对齐 C# JsonNamingPolicy.CamelCase
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 # Trigger 类型
@@ -95,6 +89,8 @@ class TriggerRequest(CamelModel):
     event_context: EventContext | None = None
     user_query: str | None = None
     periodic_summary: PeriodicSummary | None = None
+    # Decision 不读取完整快照 仅在 REASON 时作为 Tool 数据源
+    game_snapshot: GameSnapshot | None = None
 
 
 class AgentResponse(CamelModel):

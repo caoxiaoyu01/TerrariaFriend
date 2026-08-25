@@ -10,20 +10,40 @@ from pydantic import ValidationError
 
 from agent.decision.node import DecisionNode, DecisionNodeError
 from agent.decision.schema import DecisionAction, DecisionInput, DecisionResult
+from agent.llm.client import RoleLLMClient, SiliconFlowClient
+from agent.llm.config import AgentLLMSettings
 from agent.models.trigger import AgentResponse, TriggerRequest, TriggerType
+from agent.periodic_gate import PeriodicGate
+from agent.reasoning.graph import ReasoningGraph, ReasoningGraphError
+from agent.reasoning.reasoner import Reasoner
+from agent.reasoning.tool_policy import ToolPolicy
+from agent.reasoning.tools import GameContextTools, ToolExecutor
+from agent.response.generator import ResponseGenerator, ResponseGeneratorError
 
 
 logger = logging.getLogger("uvicorn.error")
 HP_DROP_REASON_THRESHOLD = -0.10
 
-# 全局复用 Decision Node 并通过 FastAPI Depends 支持测试替换
-decision_node = DecisionNode.from_environment()
+# 三个角色共用同一个底层 HTTP Client 和 API 凭证
+llm_settings = AgentLLMSettings.from_environment()
+llm_client = SiliconFlowClient(llm_settings.provider)
+decision_node = DecisionNode(RoleLLMClient(llm_client, llm_settings.decision))
+tool_executor = ToolExecutor(GameContextTools(), ToolPolicy())
+response_generator = ResponseGenerator(
+    RoleLLMClient(llm_client, llm_settings.response),
+    tool_executor=tool_executor,
+)
+reasoning_graph = ReasoningGraph(
+    Reasoner(RoleLLMClient(llm_client, llm_settings.reasoning)),
+    tool_executor=tool_executor,
+)
+periodic_gate = PeriodicGate()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     yield
-    await decision_node.aclose()
+    await llm_client.aclose()
 
 
 app = FastAPI(title="TerrariaFriend Agent", lifespan=lifespan)
@@ -31,6 +51,18 @@ app = FastAPI(title="TerrariaFriend Agent", lifespan=lifespan)
 
 def get_decision_node() -> DecisionNode:
     return decision_node
+
+
+def get_response_generator() -> ResponseGenerator:
+    return response_generator
+
+
+def get_reasoning_graph() -> ReasoningGraph:
+    return reasoning_graph
+
+
+def get_periodic_gate() -> PeriodicGate:
+    return periodic_gate
 
 
 def _as_json(value: object, max_length: int = 600) -> str:
@@ -93,8 +125,24 @@ def _apply_health_rule(
 async def handle_trigger(
     trigger: TriggerRequest,
     node: Annotated[DecisionNode, Depends(get_decision_node)],
+    generator: Annotated[ResponseGenerator, Depends(get_response_generator)],
+    graph: Annotated[ReasoningGraph, Depends(get_reasoning_graph)],
+    gate: Annotated[PeriodicGate, Depends(get_periodic_gate)],
 ) -> AgentResponse:
-    """接收 Trigger 并交给 Decision Node 选择处理路径"""
+    """接收 Trigger 并执行 Decision 选择的处理路径"""
+    if trigger.trigger_type is TriggerType.PERIODIC:
+        allowed, reason = gate.should_allow(
+            hp_drop=trigger.vitals.hp_delta <= HP_DROP_REASON_THRESHOLD
+        )
+        if not allowed:
+            return AgentResponse(
+                action=DecisionAction.IGNORE.value,
+                message=None,
+                decision_reason=f"Periodic cheap gate: {reason}",
+                success=True,
+                error=None,
+            )
+
     try:
         # Route 只负责输入转换和调用编排
         decision_input = DecisionInput.from_trigger(trigger)
@@ -119,19 +167,36 @@ async def handle_trigger(
 
     latency = time.perf_counter() - started_at
     logger.info(
-        "[DecisionNode] result\naction: %s\nreason: %s\nmodel: %s\nlatency: %.2fs",
+        "[DecisionRoute] result\naction=%s\nreason=%s\nmodel=%s\nlatency=%.2fs",
         result.action.value,
         result.reason,
         decision_source,
         latency,
     )
 
-    # P0 只返回路径标记 暂不生成最终回复
-    message = {
-        DecisionAction.IGNORE: None,
-        DecisionAction.RESPOND: "[DecisionNode] RESPOND",
-        DecisionAction.REASON: "[DecisionNode] REASON",
-    }[result.action]
+    try:
+        if result.action is DecisionAction.IGNORE:
+            message = None
+        elif result.action is DecisionAction.RESPOND:
+            message = await generator.generate(
+                decision_input,
+                result.reason,
+                trigger.game_snapshot,
+            )
+        else:
+            message = await graph.run(trigger, decision_input, result.reason)
+    except (ResponseGeneratorError, ReasoningGraphError) as exception:
+        logger.error("Agent response path failed: %s", exception)
+        return AgentResponse(
+            action="ERROR",
+            message=None,
+            decision_reason=result.reason,
+            success=False,
+            error=str(exception),
+        )
+
+    if message and message.strip():
+        gate.record_agent_message()
 
     return AgentResponse(
         action=result.action.value,

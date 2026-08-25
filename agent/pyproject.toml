@@ -9,6 +9,8 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.141.1",
+    "langchain-core>=1.6.0",
+    "langgraph>=1.2.11",
     "python-dotenv>=1.2.3",
 ]
 

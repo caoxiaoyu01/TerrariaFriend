@@ -14,9 +14,9 @@ uv run agent
 
 Trigger 接口为 `POST http://127.0.0.1:8000/agent/trigger`。
 
-## Decision Node P0
+## Phase 2A
 
-Decision Node 已接入 SiliconFlow Chat Completions，并使用结构化 JSON 输出完成 `IGNORE / RESPOND / REASON` 分类。
+后端使用 Decision Node 完成 `IGNORE / RESPOND / REASON` 分类，RESPOND 进入 Response Generator，REASON 进入 LangGraph Reasoning Loop。
 
 首次配置时复制示例文件：
 
@@ -26,19 +26,14 @@ Copy-Item .env.example .env
 
 然后只在 `.env` 中填写真实 API Key。`.env` 已被 Git 忽略，`.env.example` 只保存可提交的占位配置。
 
-Decision 模型使用以下独立配置：
+三个角色共用以下 SiliconFlow 凭证：
 
 ```text
-TERRARIAFRIEND_DECISION_MODEL
-TERRARIAFRIEND_DECISION_API_KEY
-TERRARIAFRIEND_DECISION_BASE_URL
-TERRARIAFRIEND_DECISION_MAX_TOKENS
-TERRARIAFRIEND_DECISION_TEMPERATURE
-TERRARIAFRIEND_DECISION_TOP_P
-TERRARIAFRIEND_DECISION_TOP_K
-TERRARIAFRIEND_DECISION_FREQUENCY_PENALTY
-TERRARIAFRIEND_DECISION_ENABLE_THINKING
+TERRARIAFRIEND_LLM_API_KEY
+TERRARIAFRIEND_LLM_BASE_URL
 ```
+
+Decision、Response 和 Reasoning 分别使用 `TERRARIAFRIEND_DECISION_*`、`TERRARIAFRIEND_RESPONSE_*`、`TERRARIAFRIEND_REASONING_*` 配置。旧的 `TERRARIAFRIEND_DECISION_API_KEY` 和 `TERRARIAFRIEND_DECISION_BASE_URL` 仍可作为共享凭证兼容读取。
 
 启动时会自动读取 `agent/.env`，系统环境变量具有更高优先级。缺少必需配置时直接启动失败。
 
