@@ -29,7 +29,6 @@ env/
 # 本地配置与密钥
 .env
 .env.*
-.env.example
 
 # IDE 与操作系统文件
 .vs/
@@ -47,5 +46,6 @@ Desktop.ini
 
 # 测试代码
 agent/tests/
-
+agent/.env.example
+agent/.python-version
 
