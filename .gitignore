@@ -44,3 +44,6 @@ Desktop.ini
 *.tmp
 *.temp
 .cache/
+
+# 测试代码
+agent/tests/
