@@ -69,6 +69,9 @@ class ResponseGenerator:
     ) -> None:
         self._model_client = model_client
         self._tool_executor = tool_executor or ToolExecutor()
+        self._available_tools = self._tool_executor.available_tool_descriptions(
+            DecisionAction.RESPOND
+        )
 
     async def generate(
         self,
@@ -90,7 +93,7 @@ class ResponseGenerator:
                         exclude_none=True,
                     ),
                     "decision_reason": decision_reason,
-                    "available_tools": TOOL_DESCRIPTIONS,
+                    "available_tools": self._available_tools,
                     "limits": {
                         "remaining_tool_calls": 1,
                         "must_return_final": False,
@@ -113,7 +116,7 @@ class ResponseGenerator:
                 context_key, tool_result = self._tool_executor.execute(
                     DecisionAction.RESPOND,
                     call.name,
-                    call.arguments,
+                    call.arguments_dict(),
                     game_snapshot,
                 )
             except (ToolPermissionError, ValueError, KeyError) as exception:
@@ -135,7 +138,7 @@ class ResponseGenerator:
                         exclude_none=True,
                     ),
                     "decision_reason": decision_reason,
-                    "available_tools": TOOL_DESCRIPTIONS,
+                    "available_tools": self._available_tools,
                     "tool_observation": {
                         "name": call.name.value,
                         "context_key": context_key,

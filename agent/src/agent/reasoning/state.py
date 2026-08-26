@@ -1,6 +1,14 @@
+from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from agent.models.game_snapshot import GameSnapshot
+
+
+@dataclass(slots=True)
+class ReasoningRunMetrics:
+    reasoning_rounds: int = 0
+    reasoner_total_latency_seconds: float = 0.0
+    tool_history: list[dict[str, Any]] = field(default_factory=list)
 
 
 class ReasoningState(TypedDict):
@@ -16,3 +24,5 @@ class ReasoningState(TypedDict):
     final_answer: str | None
     tool_call_count: int
     reasoning_round: int
+    reasoner_total_latency_seconds: float
+    run_metrics: ReasoningRunMetrics

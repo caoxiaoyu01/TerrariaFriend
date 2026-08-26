@@ -22,8 +22,18 @@ class ReasonerError(RuntimeError):
 
 
 class Reasoner:
-    def __init__(self, model_client: RoleLLMClient) -> None:
+    def __init__(
+        self,
+        model_client: RoleLLMClient,
+        *,
+        available_tools: dict[str, object] | None = None,
+    ) -> None:
         self._model_client = model_client
+        self._available_tools = available_tools or {
+            name: {"description": description, "args": {}}
+            for name, description in TOOL_DESCRIPTIONS.items()
+            if name != "lookup_terraria_knowledge"
+        }
 
     async def decide(
         self,
@@ -37,7 +47,7 @@ class Reasoner:
             "task": state["initial_context"],
             "collected_context": state["collected_context"],
             "tool_history": state["tool_history"],
-            "available_tools": TOOL_DESCRIPTIONS,
+            "available_tools": self._available_tools,
             "limits": {
                 "reasoning_round": round_number,
                 "remaining_tool_calls": remaining_tool_calls,
@@ -74,6 +84,9 @@ class Reasoner:
                     exception,
                 )
             except Exception as exception:
-                raise ReasonerError(f"Reasoning 模型调用失败: {exception}") from exception
+                detail = str(exception).strip() or repr(exception)
+                raise ReasonerError(
+                    f"Reasoning 模型调用失败: {type(exception).__name__}: {detail}"
+                ) from exception
 
         raise ReasonerError("Reasoning 模型连续两次返回无效结构") from last_error

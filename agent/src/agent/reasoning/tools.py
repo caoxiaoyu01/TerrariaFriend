@@ -1,9 +1,9 @@
 import json
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from agent.decision.schema import DecisionAction
 from agent.models.game_snapshot import GameSnapshot
-from agent.reasoning.schema import GameContextToolName
+from agent.reasoning.schema import GameContextToolName, WikiToolArguments
 from agent.reasoning.tool_policy import ToolPolicy
 
 
@@ -17,7 +17,20 @@ TOOL_DESCRIPTIONS = {
     GameContextToolName.GET_PROGRESS_CONTEXT.value: "读取已击败 Boss、世界里程碑和已访问关键区域",
     GameContextToolName.GET_SCENE_CONTEXT.value: "读取当前群系、层级、迷你群系、特殊区域和附近环境 Buff",
     GameContextToolName.GET_WORLD_CONTEXT.value: "读取当前时间、月相、天气和世界事件状态",
+    GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE.value: (
+        "查询可靠的 Terraria 外部知识，适合具体获取方式、配方、掉落、召唤条件、位置和游戏机制"
+    ),
 }
+
+
+class TerrariaWikiToolClient(Protocol):
+    async def lookup_terraria_knowledge(
+        self,
+        *,
+        entity: str,
+        intent: str = "general",
+        lang: str = "zh",
+    ) -> dict[str, Any]: ...
 
 
 class GameContextTools:
@@ -55,9 +68,41 @@ class ToolExecutor:
         self,
         registry: GameContextTools | None = None,
         policy: ToolPolicy | None = None,
+        wiki_client: TerrariaWikiToolClient | None = None,
     ) -> None:
         self.registry = registry or GameContextTools()
         self.policy = policy or ToolPolicy()
+        self.wiki_client = wiki_client
+
+    @property
+    def wiki_mcp_enabled(self) -> bool:
+        return self.policy.wiki_mcp_enabled
+
+    def available_tool_descriptions(
+        self,
+        mode: DecisionAction,
+    ) -> dict[str, str]:
+        return {
+            name.value: TOOL_DESCRIPTIONS[name.value]
+            for name in self.policy.allowed_tools(mode)
+        }
+
+    def available_tool_specs(
+        self,
+        mode: DecisionAction,
+    ) -> dict[str, dict[str, Any]]:
+        wiki_arguments = WikiToolArguments.model_json_schema()["properties"]
+        return {
+            name.value: {
+                "description": TOOL_DESCRIPTIONS[name.value],
+                "args": (
+                    wiki_arguments
+                    if name is GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE
+                    else {}
+                ),
+            }
+            for name in self.policy.allowed_tools(mode)
+        }
 
     def execute(
         self,
@@ -71,6 +116,29 @@ class ToolExecutor:
                 f"{mode.value} 不允许调用工具 {name.value}"
             )
         return self.registry.execute(name, arguments, snapshot)
+
+    async def execute_async(
+        self,
+        mode: DecisionAction,
+        name: GameContextToolName,
+        arguments: dict[str, Any],
+        snapshot: GameSnapshot,
+    ) -> tuple[str, dict[str, Any]]:
+        if not self.policy.is_allowed(mode, name):
+            raise ToolPermissionError(
+                f"{mode.value} 不允许调用工具 {name.value}"
+            )
+        if name is not GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE:
+            return self.registry.execute(name, arguments, snapshot)
+        if self.wiki_client is None:
+            raise RuntimeError("Terraria Wiki MCP Client 不可用")
+
+        validated_arguments = WikiToolArguments.model_validate(arguments)
+
+        result = await self.wiki_client.lookup_terraria_knowledge(
+            **validated_arguments.model_dump(mode="json"),
+        )
+        return "terraria_wiki", result
 
 
 def tool_signature(name: str, arguments: dict[str, Any]) -> str:

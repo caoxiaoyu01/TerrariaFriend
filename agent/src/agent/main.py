@@ -10,8 +10,9 @@ from pydantic import ValidationError
 
 from agent.decision.node import DecisionNode, DecisionNodeError
 from agent.decision.schema import DecisionAction, DecisionInput, DecisionResult
-from agent.llm.client import RoleLLMClient, SiliconFlowClient
+from agent.llm.client import OpenAICompatibleClient, RoleLLMClient
 from agent.llm.config import AgentLLMSettings
+from agent.mcp_clients import create_terraria_wiki_mcp_client
 from agent.models.trigger import AgentResponse, TriggerRequest, TriggerType
 from agent.periodic_gate import PeriodicGate
 from agent.reasoning.graph import ReasoningGraph, ReasoningGraphError
@@ -26,15 +27,27 @@ HP_DROP_REASON_THRESHOLD = -0.10
 
 # 三个角色共用同一个底层 HTTP Client 和 API 凭证
 llm_settings = AgentLLMSettings.from_environment()
-llm_client = SiliconFlowClient(llm_settings.provider)
+llm_client = OpenAICompatibleClient(llm_settings.provider)
 decision_node = DecisionNode(RoleLLMClient(llm_client, llm_settings.decision))
-tool_executor = ToolExecutor(GameContextTools(), ToolPolicy())
+wiki_mcp_client = create_terraria_wiki_mcp_client(
+    llm_settings.wiki_mcp_enabled
+)
+tool_executor = ToolExecutor(
+    GameContextTools(),
+    ToolPolicy(wiki_mcp_enabled=llm_settings.wiki_mcp_enabled),
+    wiki_client=wiki_mcp_client,
+)
 response_generator = ResponseGenerator(
     RoleLLMClient(llm_client, llm_settings.response),
     tool_executor=tool_executor,
 )
 reasoning_graph = ReasoningGraph(
-    Reasoner(RoleLLMClient(llm_client, llm_settings.reasoning)),
+    Reasoner(
+        RoleLLMClient(llm_client, llm_settings.reasoning),
+        available_tools=tool_executor.available_tool_specs(
+            DecisionAction.REASON
+        ),
+    ),
     tool_executor=tool_executor,
 )
 periodic_gate = PeriodicGate()
@@ -42,8 +55,24 @@ periodic_gate = PeriodicGate()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    yield
-    await llm_client.aclose()
+    if wiki_mcp_client is not None:
+        try:
+            await wiki_mcp_client.start()
+            logger.info("[WikiMCP] enabled=true status=connected")
+        except Exception as exception:
+            # Wiki 故障不阻止 Agent 启动 Reasoner 会收到紧凑工具错误
+            logger.warning(
+                "[WikiMCP] enabled=true status=unavailable error=%s",
+                exception,
+            )
+    try:
+        yield
+    finally:
+        try:
+            if wiki_mcp_client is not None:
+                await wiki_mcp_client.aclose()
+        finally:
+            await llm_client.aclose()
 
 
 app = FastAPI(title="TerrariaFriend Agent", lifespan=lifespan)

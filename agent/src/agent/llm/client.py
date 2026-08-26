@@ -6,7 +6,11 @@ from typing import Any
 
 import httpx
 
-from agent.llm.config import ModelConfig, ProviderConfig
+from agent.llm.config import LLMProvider, ModelConfig, ProviderConfig
+
+
+logger = logging.getLogger("uvicorn.error")
+MAX_PROVIDER_ERROR_CHARS = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,12 +32,13 @@ class LLMCompletion:
     latency_seconds: float
 
 
-class SiliconFlowClient:
+class OpenAICompatibleClient:
     def __init__(
         self,
         config: ProviderConfig,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
+        self.provider = config.provider
         self._owns_client = http_client is None
         self._client = http_client or httpx.AsyncClient(
             base_url=f"{config.base_url.rstrip('/')}/",
@@ -54,13 +59,18 @@ class SiliconFlowClient:
             "stream": False,
             "max_tokens": config.max_tokens,
             "temperature": config.temperature,
-            "enable_thinking": config.enable_thinking,
         }
+        if self.provider is LLMProvider.DEEPSEEK:
+            request_body["thinking"] = {
+                "type": "enabled" if config.enable_thinking else "disabled"
+            }
+        else:
+            request_body["enable_thinking"] = config.enable_thinking
         if config.reasoning_effort is not None:
             request_body["reasoning_effort"] = config.reasoning_effort
         if config.top_p is not None:
             request_body["top_p"] = config.top_p
-        if config.top_k is not None:
+        if config.top_k is not None and self.provider is LLMProvider.SILICONFLOW:
             request_body["top_k"] = config.top_k
         if config.frequency_penalty is not None:
             request_body["frequency_penalty"] = config.frequency_penalty
@@ -68,9 +78,22 @@ class SiliconFlowClient:
             request_body["response_format"] = {"type": "json_object"}
 
         started_at = time.perf_counter()
-        response = await self._client.post("chat/completions", json=request_body)
-        response.raise_for_status()
-        response_data = response.json()
+        response: httpx.Response | None = None
+        try:
+            response = await self._client.post(
+                "chat/completions",
+                json=request_body,
+            )
+            response.raise_for_status()
+            response_data = response.json()
+        except Exception as exception:
+            _log_llm_failure(
+                config,
+                exception,
+                response,
+                time.perf_counter() - started_at,
+            )
+            raise
         latency = time.perf_counter() - started_at
 
         message = response_data["choices"][0]["message"]
@@ -98,7 +121,7 @@ class SiliconFlowClient:
 
 
 class RoleLLMClient:
-    def __init__(self, client: SiliconFlowClient, config: ModelConfig) -> None:
+    def __init__(self, client: OpenAICompatibleClient, config: ModelConfig) -> None:
         self._client = client
         self.config = config
 
@@ -117,7 +140,6 @@ class RoleLLMClient:
             self.config,
             json_output=False,
         )
-
     async def generate_structured(
         self,
         *,
@@ -136,6 +158,10 @@ class RoleLLMClient:
             self.config,
             json_output=True,
         )
+
+
+# 保留旧名称，避免外部测试或调用方在迁移期间中断。
+SiliconFlowClient = OpenAICompatibleClient
 
 
 def parse_json_object(content: str) -> object:
@@ -174,6 +200,76 @@ def log_model_completion(
         usage.total_tokens,
         completion.latency_seconds,
     )
+
+
+def _log_llm_failure(
+    config: ModelConfig,
+    exception: Exception,
+    response: httpx.Response | None,
+    elapsed_seconds: float,
+) -> None:
+    if isinstance(exception, httpx.HTTPStatusError):
+        response = exception.response
+    logger.error(
+        "[LLMError] component=%s role=%s model=%s exception_type=%s "
+        "elapsed_seconds=%.2f http_status=%s timeout_stage=%s "
+        "request_id=%s provider_error=%s error=%s",
+        _component_name(config.role),
+        config.role,
+        config.model_name,
+        type(exception).__name__,
+        elapsed_seconds,
+        response.status_code if response is not None else None,
+        _timeout_stage(exception),
+        _request_id(response),
+        _provider_error(response),
+        _compact_text(str(exception) or repr(exception)),
+    )
+
+
+def _component_name(role: str) -> str:
+    return {
+        "decision": "DecisionNode",
+        "response": "ResponseGenerator",
+        "reasoning": "Reasoner",
+    }.get(role, role)
+
+
+def _timeout_stage(exception: Exception) -> str | None:
+    if isinstance(exception, httpx.ConnectTimeout):
+        return "connect"
+    if isinstance(exception, httpx.ReadTimeout):
+        return "read"
+    if isinstance(exception, httpx.WriteTimeout):
+        return "write"
+    if isinstance(exception, httpx.PoolTimeout):
+        return "pool"
+    if isinstance(exception, httpx.TimeoutException):
+        return "unknown"
+    return None
+
+
+def _request_id(response: httpx.Response | None) -> str | None:
+    if response is None:
+        return None
+    for name in ("x-request-id", "request-id", "x-siliconflow-request-id"):
+        value = response.headers.get(name)
+        if value:
+            return value
+    return None
+
+
+def _provider_error(response: httpx.Response | None) -> str | None:
+    if response is None:
+        return None
+    return _compact_text(response.text)
+
+
+def _compact_text(value: str) -> str:
+    compact = " ".join(value.split())
+    if len(compact) <= MAX_PROVIDER_ERROR_CHARS:
+        return compact
+    return f"{compact[:MAX_PROVIDER_ERROR_CHARS]}..."
 
 
 def _messages(

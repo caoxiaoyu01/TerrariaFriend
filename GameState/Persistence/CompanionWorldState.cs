@@ -13,13 +13,16 @@ namespace TerrariaFriend.GameState.Persistence
 	{
 		private const string VisitedRegionsKey = "visitedRegions";
 		private const string VisitedCellsKey = "visitedCells";
+		private const string DiscoveredSceneFeaturesKey = "discoveredSceneFeatures";
 		private const string WorldEventOccurrencesKey = "worldEventOccurrences";
 		private readonly HashSet<string> _visitedRegions = new HashSet<string>();
 		private readonly HashSet<ExplorationCell> _visitedCells = new HashSet<ExplorationCell>();
+		private readonly HashSet<string> _discoveredSceneFeatures = new HashSet<string>();
 		private readonly Dictionary<string, int> _worldEventOccurrences = new Dictionary<string, int>();
 
 		public IReadOnlyCollection<string> VisitedRegions => _visitedRegions;
 		public IReadOnlyCollection<ExplorationCell> VisitedCells => _visitedCells;
+		public IReadOnlyCollection<string> DiscoveredSceneFeatures => _discoveredSceneFeatures;
 
 		public void MarkVisited(string region)
 		{
@@ -41,6 +44,27 @@ namespace TerrariaFriend.GameState.Persistence
 			return added;
 		}
 
+		// 返回 true 表示该场景特征在这个世界中第一次被记录。
+		public bool MarkSceneFeatureDiscovered(string featureKey)
+		{
+			bool added = _discoveredSceneFeatures.Add(featureKey);
+			if (!added) return false;
+
+			if (Main.netMode == NetmodeID.MultiplayerClient)
+			{
+				ModPacket packet = Mod.GetPacket();
+				packet.Write((byte)TerrariaFriendMessageType.SceneFeatureDiscovered);
+				packet.Write(featureKey);
+				packet.Send();
+			}
+			else if (Main.netMode == NetmodeID.Server)
+			{
+				NetMessage.SendData(MessageID.WorldData);
+			}
+
+			return true;
+		}
+
 		public int GetWorldEventOccurrenceCount(string eventId)
 		{
 			_worldEventOccurrences.TryGetValue(eventId, out int previousCount);
@@ -59,6 +83,7 @@ namespace TerrariaFriend.GameState.Persistence
 		{
 			_visitedRegions.Clear();
 			_visitedCells.Clear();
+			_discoveredSceneFeatures.Clear();
 			_worldEventOccurrences.Clear();
 		}
 
@@ -66,6 +91,7 @@ namespace TerrariaFriend.GameState.Persistence
 		{
 			tag[VisitedRegionsKey] = new List<string>(_visitedRegions);
 			tag[VisitedCellsKey] = SaveCells(_visitedCells);
+			tag[DiscoveredSceneFeaturesKey] = new List<string>(_discoveredSceneFeatures);
 			tag[WorldEventOccurrencesKey] = SaveOccurrences(_worldEventOccurrences);
 		}
 
@@ -73,6 +99,7 @@ namespace TerrariaFriend.GameState.Persistence
 		{
 			_visitedRegions.UnionWith(tag.GetList<string>(VisitedRegionsKey));
 			LoadCells(tag.GetList<TagCompound>(VisitedCellsKey), _visitedCells);
+			_discoveredSceneFeatures.UnionWith(tag.GetList<string>(DiscoveredSceneFeaturesKey));
 			LoadOccurrences(tag.GetList<TagCompound>(WorldEventOccurrencesKey), _worldEventOccurrences);
 		}
 
@@ -86,6 +113,8 @@ namespace TerrariaFriend.GameState.Persistence
 				writer.Write(cell.X);
 				writer.Write(cell.Y);
 			}
+			writer.Write(_discoveredSceneFeatures.Count);
+			foreach (string featureKey in _discoveredSceneFeatures) writer.Write(featureKey);
 			WriteOccurrences(writer, _worldEventOccurrences);
 		}
 
@@ -100,6 +129,13 @@ namespace TerrariaFriend.GameState.Persistence
 			for (int i = 0; i < cellCount; i++)
 			{
 				_visitedCells.Add(new ExplorationCell(reader.ReadInt32(), reader.ReadInt32()));
+			}
+
+			_discoveredSceneFeatures.Clear();
+			int featureCount = reader.ReadInt32();
+			for (int i = 0; i < featureCount; i++)
+			{
+				_discoveredSceneFeatures.Add(reader.ReadString());
 			}
 
 			ReadOccurrences(reader, _worldEventOccurrences);

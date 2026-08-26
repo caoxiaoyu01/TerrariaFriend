@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using Terraria.ModLoader;
+using TerrariaFriend.GameState.Persistence;
 using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
@@ -63,13 +65,17 @@ namespace TerrariaFriend.Triggering
 			HashSet<string> previousFeatures = new HashSet<string>(previous);
 			foreach (string feature in current)
 			{
-				if (!previousFeatures.Contains(feature))
-				{
-					events.Add(new GameEvent(
-						GameEventType.SceneFeatureEntered,
-						category,
-						feature));
-				}
+				if (previousFeatures.Contains(feature)) continue;
+				if (!DiscoverableSceneFeatures.Contains(category, feature)) continue;
+
+				string featureKey = DiscoverableSceneFeatures.CreateKey(category, feature);
+				CompanionWorldState worldState = ModContent.GetInstance<CompanionWorldState>();
+				if (!worldState.MarkSceneFeatureDiscovered(featureKey)) continue;
+
+				events.Add(new GameEvent(
+					GameEventType.SceneFeatureEntered,
+					category,
+					feature));
 			}
 		}
 
