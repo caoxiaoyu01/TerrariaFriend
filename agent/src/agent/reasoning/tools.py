@@ -213,7 +213,7 @@ def _inventory_context(snapshot: GameSnapshot) -> dict[str, Any]:
 def _progress_context(snapshot: GameSnapshot) -> dict[str, Any]:
     return _select(
         snapshot.progress,
-        ("defeatedBosses", "worldMilestones", "visitedRegions"),
+        ("defeatedBosses", "worldMilestones", "currentStage", "visitedRegions"),
     )
 
 

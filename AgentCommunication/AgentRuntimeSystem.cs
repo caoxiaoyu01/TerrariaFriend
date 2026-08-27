@@ -16,7 +16,7 @@ namespace TerrariaFriend.AgentCommunication
 	{
 		private readonly AgentClient _client = new AgentClient();
 
-		// USER_QUERY 与 GAME_EVENT 分队列保存以保证固定优先级
+		// 用户查询与游戏事件分队列保存以保证固定优先级
 		private readonly Queue<TriggerEvent> _pendingUserQueries = new Queue<TriggerEvent>();
 		private readonly Queue<TriggerEvent> _pendingGameEvents = new Queue<TriggerEvent>();
 		private readonly HashSet<GameEvent> _pendingGameEventKeys = new HashSet<GameEvent>();
@@ -28,6 +28,30 @@ namespace TerrariaFriend.AgentCommunication
 		public override void OnWorldLoad()
 		{
 			ClearPending();
+			TriggerSystem triggerSystem = ModContent.GetInstance<TriggerSystem>();
+			triggerSystem.BoundarySignalDispatched -= HandleBoundarySignal;
+			triggerSystem.BoundarySignalDispatched += HandleBoundarySignal;
+		}
+
+		private void HandleBoundarySignal(GameEvent gameEvent)
+		{
+			if (gameEvent.EventType != GameEventType.WorldSessionEnded) return;
+
+			// 世界卸载会立即清空普通队列
+			// 仅在这个少见边界等待 Python 持久关闭当前一级轨迹
+			try
+			{
+				using var timeout = new System.Threading.CancellationTokenSource(
+					AgentConfiguration.BoundarySignalTimeout);
+				_client.SendWorldSessionEndedAsync(DateTimeOffset.UtcNow, timeout.Token)
+					.GetAwaiter()
+					.GetResult();
+				Mod.Logger.Info("[AgentRuntime] WorldSessionEnded delivered to L1.");
+			}
+			catch (Exception exception)
+			{
+				Mod.Logger.Error($"Failed to deliver WorldSessionEnded: {exception}");
+			}
 		}
 
 		public override void OnWorldUnload()

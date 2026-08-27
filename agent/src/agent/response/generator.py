@@ -1,4 +1,5 @@
 import logging
+import time
 from enum import Enum
 from typing import Any
 
@@ -11,6 +12,7 @@ from agent.llm.client import (
     parse_json_object,
 )
 from agent.models.game_snapshot import GameSnapshot
+from agent.models.execution import AgentExecutionResult, ToolHistoryMetadata
 from agent.reasoning.schema import ToolCall
 from agent.reasoning.tools import (
     TOOL_DESCRIPTIONS,
@@ -78,7 +80,7 @@ class ResponseGenerator:
         decision_input: DecisionInput,
         decision_reason: str,
         game_snapshot: GameSnapshot | None = None,
-    ) -> str:
+    ) -> AgentExecutionResult:
         logger.info(
             "[ResponseGenerator] trigger=%s model=%s thinking=%s",
             decision_input.trigger_type.value,
@@ -102,7 +104,10 @@ class ResponseGenerator:
             )
             if first_result.status is ResponseStatus.FINAL:
                 logger.info("[ResponseGenerator] tool_calls=0")
-                return self._final_answer(first_result)
+                return self._execution(
+                    self._final_answer(first_result),
+                    reasoning_rounds=1,
+                )
 
             call = first_result.tool_calls[0]
             if game_snapshot is None:
@@ -110,8 +115,21 @@ class ResponseGenerator:
                     "[ResponseGenerator] tool_calls=0 tool=%s error=missing_snapshot",
                     call.name.value,
                 )
-                return RESPONSE_FALLBACK
+                return self._execution(
+                    RESPONSE_FALLBACK,
+                    reasoning_rounds=1,
+                    tool_history=[
+                        ToolHistoryMetadata(
+                            name=call.name.value,
+                            arguments=call.arguments_dict(),
+                            status="error",
+                            success=False,
+                            round=1,
+                        )
+                    ],
+                )
 
+            tool_started_at = time.perf_counter()
             try:
                 context_key, tool_result = self._tool_executor.execute(
                     DecisionAction.RESPOND,
@@ -125,7 +143,29 @@ class ResponseGenerator:
                     call.name.value,
                     exception,
                 )
-                return RESPONSE_FALLBACK
+                return self._execution(
+                    RESPONSE_FALLBACK,
+                    reasoning_rounds=1,
+                    tool_history=[
+                        ToolHistoryMetadata(
+                            name=call.name.value,
+                            arguments=call.arguments_dict(),
+                            status="error",
+                            success=False,
+                            round=1,
+                            latency_ms=(time.perf_counter() - tool_started_at) * 1000,
+                        )
+                    ],
+                )
+
+            tool_metadata = ToolHistoryMetadata(
+                name=call.name.value,
+                arguments=call.arguments_dict(),
+                status="success",
+                success=True,
+                round=1,
+                latency_ms=(time.perf_counter() - tool_started_at) * 1000,
+            )
 
             logger.info(
                 "[ResponseGenerator] tool_calls=1 tool=%s",
@@ -155,8 +195,18 @@ class ResponseGenerator:
                     "[ResponseGenerator] second_tool_denied tool=%s",
                     final_result.tool_calls[0].name.value,
                 )
-                return RESPONSE_FALLBACK
-            return self._final_answer(final_result)
+                return self._execution(
+                    RESPONSE_FALLBACK,
+                    reasoning_rounds=2,
+                    used_game_context={context_key: tool_result},
+                    tool_history=[tool_metadata],
+                )
+            return self._execution(
+                self._final_answer(final_result),
+                reasoning_rounds=2,
+                used_game_context={context_key: tool_result},
+                tool_history=[tool_metadata],
+            )
         except ResponseGeneratorError:
             raise
         except Exception as exception:
@@ -186,3 +236,19 @@ class ResponseGenerator:
             raise ResponseGeneratorError("Response 模型返回了空内容")
         logger.info("[ResponseGenerator] response=%s", result.answer)
         return result.answer
+
+    @staticmethod
+    def _execution(
+        message: str,
+        *,
+        reasoning_rounds: int,
+        used_game_context: dict[str, dict[str, Any]] | None = None,
+        tool_history: list[ToolHistoryMetadata] | None = None,
+    ) -> AgentExecutionResult:
+        return AgentExecutionResult(
+            message=message,
+            decision_action=DecisionAction.RESPOND,
+            reasoning_rounds=reasoning_rounds,
+            used_game_context=used_game_context or {},
+            tool_history=tool_history or [],
+        )

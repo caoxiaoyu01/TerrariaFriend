@@ -3,7 +3,7 @@ using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
-	// 仅稳定、具有探索意义的场景参与世界级“首次发现”事件。
+	// 仅稳定且具有探索意义的场景参与世界级首次发现事件
 	internal static class DiscoverableSceneFeatures
 	{
 		private static readonly HashSet<string> Keys = new HashSet<string>

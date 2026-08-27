@@ -59,7 +59,7 @@ namespace TerrariaFriend.Common.Systems
 				InterfaceScaleType.UI));
 		}
 
-		// Agent 完整消息进入现有显示区域的统一入口
+		// 智能体完整消息进入现有显示区域的统一入口
 		// 只应在游戏客户端主线程调用
 		public static void ShowMessage(string message)
 		{

@@ -17,7 +17,7 @@ from agent.models.trigger import (
     约定输入输出 schema
 """
 
-# Decision Node 只允许选择三种后续路径
+# 决策节点只允许选择三种后续路径
 class DecisionAction(str, Enum):
     IGNORE = "IGNORE"
     RESPOND = "RESPOND"
@@ -36,7 +36,9 @@ class DecisionGameEvent(BaseModel):
             GameEventType.PLAYER_DIED: ("player_id", "player_name"),
             GameEventType.BOSS_SPAWNED: ("boss_type_id", "boss_name"),
             GameEventType.BOSS_ENDED: ("boss_type_id", "boss_name"),
+            GameEventType.BOSS_DEFEATED: ("boss_type_id", "boss_name"),
             GameEventType.SCENE_FEATURE_ENTERED: ("feature_category", "feature_name"),
+            GameEventType.SCENE_FEATURE_EXITED: ("feature_category", "feature_name"),
             GameEventType.WORLD_EVENT_STARTED: ("event_id", "event_name"),
             GameEventType.WORLD_EVENT_ENDED: ("event_id", "event_name"),
             GameEventType.SPECIAL_NPC_APPEARED: ("npc_type_id", "npc_name"),
@@ -50,6 +52,12 @@ class DecisionGameEvent(BaseModel):
             if game_event.cell_y is not None:
                 payload["cell_y"] = game_event.cell_y
             return cls(event_type=game_event.event_type, payload=payload)
+
+        if game_event.event_type in {
+            GameEventType.EQUIPMENT_CHANGED,
+            GameEventType.WORLD_SESSION_ENDED,
+        }:
+            return cls(event_type=game_event.event_type, payload={})
 
         id_name, display_name = payload_names[game_event.event_type]
         payload = {}

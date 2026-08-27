@@ -153,14 +153,19 @@ class RoleLLMClient:
             if include_output_schema
             else input_data
         )
+        structured_prompt = (
+            f"{system_prompt.rstrip()}\n\n"
+            "Return exactly one valid JSON object matching the requested output schema. "
+            "Do not wrap the JSON in Markdown fences or add any other text."
+        )
         return await self._client.complete(
-            _messages(system_prompt, payload),
+            _messages(structured_prompt, payload),
             self.config,
             json_output=True,
         )
 
 
-# 保留旧名称，避免外部测试或调用方在迁移期间中断。
+# 保留旧名称以避免外部测试或调用方在迁移期间中断
 SiliconFlowClient = OpenAICompatibleClient
 
 

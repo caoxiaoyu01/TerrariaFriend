@@ -1,10 +1,11 @@
 #nullable enable
 
 using System.Collections.Generic;
+using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
-	// GAME_EVENT 判断所需的轻量即时上下文
+	// 游戏事件判断所需的轻量即时上下文
 	public sealed record GameEventContext(
 		int? NearbyEnemyCount = null,
 		string? ProgressionStage = null,
@@ -22,5 +23,9 @@ namespace TerrariaFriend.Triggering
 		bool? BossActive = null,
 		string? BossName = null,
 		int? DamageTakenLast5s = null,
-		string? LastDamageSource = null);
+		string? LastDamageSource = null,
+		ArmorSnapshot? ArmorBefore = null,
+		ArmorSnapshot? ArmorAfter = null,
+		IReadOnlyList<ItemSummary>? AccessoriesAdded = null,
+		IReadOnlyList<ItemSummary>? AccessoriesRemoved = null);
 }

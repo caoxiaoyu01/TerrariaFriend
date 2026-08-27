@@ -7,6 +7,11 @@ from langgraph.graph import END, START, StateGraph
 
 from agent.decision.schema import DecisionAction, DecisionInput
 from agent.models.trigger import TriggerRequest
+from agent.models.execution import (
+    AgentExecutionResult,
+    ToolHistoryMetadata,
+    select_game_context,
+)
 from agent.reasoning.context_builder import ContextBuilder
 from agent.reasoning.reasoner import Reasoner, ReasonerError
 from agent.reasoning.schema import (
@@ -60,7 +65,7 @@ class ReasoningGraph:
         trigger: TriggerRequest,
         decision_input: DecisionInput,
         decision_reason: str,
-    ) -> str:
+    ) -> AgentExecutionResult:
         if trigger.game_snapshot is None:
             raise ReasoningGraphError("REASON 请求缺少 game_snapshot")
 
@@ -142,7 +147,18 @@ class ReasoningGraph:
             reasoner_latency_seconds=run_metrics.reasoner_total_latency_seconds,
             total_latency_seconds=total_latency_seconds,
         )
-        return answer
+        return AgentExecutionResult(
+            message=answer,
+            decision_action=DecisionAction.REASON,
+            reasoning_rounds=final_state["reasoning_round"],
+            used_game_context=select_game_context(
+                final_state["collected_context"]
+            ),
+            tool_history=[
+                ToolHistoryMetadata.model_validate(entry)
+                for entry in final_state["tool_history"]
+            ],
+        )
 
     async def _reasoner_node(self, state: ReasoningState) -> dict[str, Any]:
         round_number = state["reasoning_round"] + 1

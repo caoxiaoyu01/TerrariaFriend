@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace TerrariaFriend.GameState.Snapshots
 {
-	// 当前世界中的重要 NPC，以及玩家附近的重要 NPC。
+	// 当前世界中的重要非玩家角色以及玩家附近的重要非玩家角色
 	public sealed record NpcSnapshot(
 		int TownNpcCount,
 		IReadOnlyList<TownNpcSummary> TownNpcs,

@@ -4,12 +4,11 @@ using Terraria.ModLoader;
 
 namespace TerrariaFriend.Content.Items
 {
-	// This is a basic item template.
-	// Please see tModLoader's ExampleMod for every other example:
-	// https://github.com/tModLoader/tModLoader/tree/stable/ExampleMod
+	// 基础物品模板
+	// 其他示例请参考 tModLoader 的 ExampleMod
 	public class SpiriTerra : ModItem
 	{
-		// The Display Name and Tooltip of this item can be edited in the 'Localization/en-US_Mods.TerrariaFriend.hjson' file.
+		// 物品显示名称和提示文本可在本地化文件中编辑
 		public override void SetDefaults()
 		{
 			Item.damage = 50;

@@ -61,7 +61,7 @@ namespace TerrariaFriend.GameState.Tracking
 				CellX: currentCell.X,
 				CellY: currentCell.Y);
 			eventContext = new GameEventContext(
-				ProgressionStage: snapshot.Progress.WorldMilestones.LastOrDefault() ?? "Pre-Hardmode",
+				ProgressionStage: snapshot.Progress.CurrentStage.Id,
 				Biomes: currentEnvironment.Biomes,
 				Layer: currentEnvironment.Layer,
 				MiniBiomes: currentEnvironment.MiniBiomes,

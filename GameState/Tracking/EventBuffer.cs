@@ -11,7 +11,7 @@ namespace TerrariaFriend.GameState.Tracking
 		float TimeSinceLastDamageSeconds,
 		bool HasHostileDamage);
 
-	// 保存最近五秒内发生的短期战斗事件。
+	// 保存最近五秒内发生的短期战斗事件
 	internal sealed class EventBuffer
 	{
 		private const uint WindowTicks = 5 * 60;

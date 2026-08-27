@@ -1,1 +1,1 @@
-"""TerrariaFriend 独立 MCP Servers"""
+"""泰拉瑞亚伙伴独立模型上下文协议服务"""

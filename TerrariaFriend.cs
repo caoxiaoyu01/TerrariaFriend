@@ -12,7 +12,7 @@ namespace TerrariaFriend
 		SceneFeatureDiscovered
 	}
 
-	// Please read https://github.com/tModLoader/tModLoader/wiki/Basic-tModLoader-Modding-Guide#mod-skeleton-contents for more information about the various files in a mod.
+	// 模组各类文件的说明请参考 tModLoader 基础模组开发指南
 	public class TerrariaFriend : Mod
 	{
 		public override void HandlePacket(BinaryReader reader, int whoAmI)

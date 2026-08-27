@@ -1,6 +1,6 @@
 namespace TerrariaFriend.GameState.Snapshots
 {
-	// Scene 对外使用的稳定语义名称
+	// 场景对外使用的稳定语义名称
 	public static class SceneFeatureNames
 	{
 		public static class MiniBiome

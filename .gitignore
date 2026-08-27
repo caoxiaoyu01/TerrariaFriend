@@ -26,9 +26,20 @@ htmlcov/
 venv/
 env/
 
-# 本地配置与密钥
+# 本地配置、密钥与机器相关依赖快照
 .env
 .env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*secrets*.json
+
+# 该文件包含本机用户目录下的绝对 wheel 路径，不应提交
+agent/requirements.txt
 
 # IDE 与操作系统文件
 .vs/
@@ -43,9 +54,31 @@ Desktop.ini
 *.tmp
 *.temp
 .cache/
+agent/data/l1_trace_state.json
+agent/data/l2_formation_state.json
 
-# 测试代码
-agent/tests/
+# 测试与独立实验代码
+tests/
+test/
+Tests/
+Test/
+**/tests/
+**/test/
+**/Tests/
+**/Test/
+test_*.py
+*_test.py
+*.Tests.cs
+*Tests.cs
+experiments/
+experiment/
+spikes/
+spike/
+**/experiments/
+**/experiment/
+**/spikes/
+**/spike/
+
+# 本机 Python/工具配置
 agent/.env.example
 agent/.python-version
-

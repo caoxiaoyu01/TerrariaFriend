@@ -6,7 +6,7 @@ using Terraria.UI;
 
 namespace TerrariaFriend.Common.UI
 {
-	// Companion 消息框只负责显示 Agent 回复
+	// 伙伴消息框只负责显示智能体回复
 	public class AgentMessageUIState : UIState
 	{
 		private const string DefaultMessage = "UI 已连接。这里将显示 Agent 消息。";

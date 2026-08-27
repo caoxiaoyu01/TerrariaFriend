@@ -72,6 +72,21 @@ namespace TerrariaFriend.AgentCommunication
 			}
 		}
 
+		public async Task SendWorldSessionEndedAsync(
+			DateTimeOffset occurredAt,
+			CancellationToken cancellationToken = default)
+		{
+			string json = JsonSerializer.Serialize(
+				new { occurredAt },
+				JsonOptions);
+			using StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+			using HttpResponseMessage response = await HttpClient.PostAsync(
+				AgentConfiguration.WorldSessionEndedEndpoint,
+				content,
+				cancellationToken).ConfigureAwait(false);
+			response.EnsureSuccessStatusCode();
+		}
+
 		private static AgentResponse Failed(string error)
 		{
 			return new AgentResponse("ERROR", null, null, false, error);

@@ -5,8 +5,8 @@ using TerrariaFriend.Common.Systems;
 namespace TerrariaFriend.Content.Commands
 {
 	/// <summary>
-	/// Temporary development command for checking the message UI in game.
-	/// Example: /friend 接下来建议先建造一个工作台。
+	/// 用于在游戏中检查消息界面的临时开发命令
+	/// 示例 /friend 接下来建议先建造一个工作台
 	/// </summary>
 	public class FriendMessageCommand : ModCommand
 	{

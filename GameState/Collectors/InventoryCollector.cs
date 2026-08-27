@@ -34,7 +34,7 @@ namespace TerrariaFriend.GameState.Collectors
 			ItemID.EmpressButterfly
 		};
 
-		// 提取快捷栏、装备和关键消耗品摘要，不复制完整背包。
+		// 提取快捷栏 装备和关键消耗品摘要且不复制完整背包
 		public static InventorySnapshot Capture(Player player)
 		{
 			HotbarSlotSummary[] hotbar = CaptureHotbar(player);
@@ -50,7 +50,7 @@ namespace TerrariaFriend.GameState.Collectors
 			int freeSlots = 0;
 			Dictionary<int, ItemSummary> bossSummons = new Dictionary<int, ItemSummary>();
 
-			// FreeSlots 仅统计 inventory[0..49]，不包含金币、弹药和其他专用槽位。
+			// 空闲槽位仅统计背包前五十格且不包含金币 弹药和其他专用槽位
 			for (int slot = 0; slot < MainInventorySlots; slot++)
 			{
 				Item item = player.inventory[slot];

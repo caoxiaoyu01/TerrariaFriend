@@ -8,7 +8,7 @@ namespace TerrariaFriend.Triggering
 
 		private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
 
-		// Stopwatch 使用 wall-clock，不受 Terraria 昼夜时间影响。
+		// 计时器使用现实时间且不受泰拉瑞亚昼夜时间影响
 		public bool TryConsumeDueTrigger()
 		{
 			if (_stopwatch.Elapsed.TotalSeconds < PeriodicIntervalSeconds) return false;

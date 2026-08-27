@@ -12,7 +12,7 @@ namespace TerrariaFriend.GameState.Collectors
 	{
 		private const float PixelsPerTile = 16f;
 
-		// 单次扫描生成常驻、附近常驻、特殊 NPC 与活动 Boss 快照。
+		// 单次扫描生成常驻 附近常驻 特殊非玩家角色与活动首领快照
 		public static NpcSnapshot Capture(Player player, float radiusTiles)
 		{
 			Dictionary<int, TownNpcSummary> townNpcs = new Dictionary<int, TownNpcSummary>();

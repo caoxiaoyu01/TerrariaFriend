@@ -8,11 +8,15 @@ namespace TerrariaFriend.Triggering
 		PlayerDied,
 		BossSpawned,
 		BossEnded,
+		BossDefeated,
 		NewAreaDiscovered,
 		SceneFeatureEntered,
+		SceneFeatureExited,
 		WorldEventStarted,
 		WorldEventEnded,
 		SpecialNpcAppeared,
-		ProgressMilestoneChanged
+		ProgressMilestoneChanged,
+		EquipmentChanged,
+		WorldSessionEnded
 	}
 }

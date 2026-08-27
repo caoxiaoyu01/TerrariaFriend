@@ -44,7 +44,7 @@ namespace TerrariaFriend.GameState.Persistence
 			return added;
 		}
 
-		// 返回 true 表示该场景特征在这个世界中第一次被记录。
+		// 返回真表示该场景特征在这个世界中第一次被记录
 		public bool MarkSceneFeatureDiscovered(string featureKey)
 		{
 			bool added = _discoveredSceneFeatures.Add(featureKey);

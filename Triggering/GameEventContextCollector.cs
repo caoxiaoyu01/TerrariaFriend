@@ -18,7 +18,9 @@ namespace TerrariaFriend.Triggering
 				GameEventType.BossSpawned => new GameEventContext(
 					NearbyEnemyCount: snapshot.Combat.NearbyEnemyCount),
 				GameEventType.BossEnded => new GameEventContext(),
+				GameEventType.BossDefeated => new GameEventContext(),
 				GameEventType.SceneFeatureEntered => CaptureSceneContext(snapshot),
+				GameEventType.SceneFeatureExited => CaptureSceneContext(snapshot),
 				GameEventType.WorldEventStarted => new GameEventContext(
 					OccurrenceCount: GetWorldEventOccurrenceCount(gameEvent),
 					ActiveEvents: GetActiveEvents(snapshot)),
@@ -30,6 +32,8 @@ namespace TerrariaFriend.Triggering
 					IsNearby: GetSpecialNpcNearby(gameEvent, snapshot)),
 				GameEventType.ProgressMilestoneChanged => new GameEventContext(
 					Biomes: snapshot.Scene.Biomes),
+				GameEventType.EquipmentChanged => new GameEventContext(),
+				GameEventType.WorldSessionEnded => new GameEventContext(),
 				GameEventType.PlayerDied => new GameEventContext(
 					Biomes: snapshot.Scene.Biomes,
 					NearbyEnemyCount: snapshot.Combat.NearbyEnemyCount,
@@ -44,7 +48,7 @@ namespace TerrariaFriend.Triggering
 		private static GameEventContext CaptureSceneContext(GameSnapshot snapshot)
 		{
 			return new GameEventContext(
-				ProgressionStage: snapshot.Progress.WorldMilestones.LastOrDefault() ?? "Pre-Hardmode",
+				ProgressionStage: snapshot.Progress.CurrentStage.Id,
 				Biomes: snapshot.Scene.Biomes,
 				Layer: snapshot.Scene.Layer,
 				MiniBiomes: snapshot.Scene.MiniBiomes,

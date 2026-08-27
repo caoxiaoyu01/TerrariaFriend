@@ -8,7 +8,7 @@ using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
-	// 比较相邻 Snapshot，只报告刚刚发生的状态变化。
+	// 比较相邻快照并只报告刚刚发生的状态变化
 	public sealed class EventDetector
 	{
 		private GameSnapshot? _previous;
@@ -159,11 +159,29 @@ namespace TerrariaFriend.Triggering
 				current.Progress.DefeatedBosses,
 				"Boss",
 				events);
-			DetectNewProgressItems(
+			DetectNewProgressMilestones(
 				previous.Progress.WorldMilestones,
 				current.Progress.WorldMilestones,
-				"WorldMilestone",
 				events);
+		}
+
+		private static void DetectNewProgressMilestones(
+			IReadOnlyList<ProgressMilestoneSnapshot> previous,
+			IReadOnlyList<ProgressMilestoneSnapshot> current,
+			List<GameEvent> events)
+		{
+			HashSet<string> previousIds = new HashSet<string>();
+			foreach (ProgressMilestoneSnapshot milestone in previous)
+				previousIds.Add(milestone.Id);
+
+			foreach (ProgressMilestoneSnapshot milestone in current)
+			{
+				if (previousIds.Contains(milestone.Id)) continue;
+				events.Add(new GameEvent(
+					GameEventType.ProgressMilestoneChanged,
+					milestone.Id,
+					milestone.Name));
+			}
 		}
 
 		private static void DetectNewProgressItems(
