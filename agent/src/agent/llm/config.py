@@ -70,7 +70,7 @@ class AgentLLMSettings:
 
     @classmethod
     def from_environment(cls) -> "AgentLLMSettings":
-        # 真实凭证只从 agent/.env 或系统环境变量读取
+        # 密钥只从项目环境文件或系统环境变量读取
         load_dotenv(_AGENT_ROOT / ".env", override=False)
 
         provider_name = os.environ.get(

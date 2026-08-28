@@ -13,7 +13,7 @@ namespace TerrariaFriend.GameState.Collectors
 		private const float PixelsPerTile = 16f;
 		public const float NearbyEnemyRadius = GameStateCollector.DefaultSceneRadiusTiles;
 
-		// 汇总当前 Boss、附近敌人数与最近五秒的受伤事件
+		// 汇总当前首领 附近敌人数和最近五秒的受伤记录
 		public static CombatSnapshot Capture(Player player)
 		{
 			List<BossCombatSummary> bosses = new List<BossCombatSummary>();

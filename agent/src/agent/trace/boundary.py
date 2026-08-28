@@ -53,7 +53,7 @@ class BoundaryEvaluation(CamelModel):
 
 
 class TraceBoundaryPolicy:
-    """基于现有情节和胶囊事实的纯结构边界策略"""
+    """根据现有情节内容判断何时结束一段近期记忆"""
 
     def evaluate(self, episode: Episode) -> BoundaryEvaluation:
         event = episode.events[0]

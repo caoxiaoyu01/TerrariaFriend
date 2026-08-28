@@ -8,7 +8,7 @@ using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
-	// 从当前 Snapshot 提取事件判断需要的少量字段
+	// 从当前游戏状态中取出判断事件需要的少量字段
 	public static class GameEventContextCollector
 	{
 		public static GameEventContext Capture(GameEvent gameEvent, GameSnapshot snapshot)

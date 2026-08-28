@@ -5,7 +5,7 @@ using Terraria.ModLoader;
 namespace TerrariaFriend.Content.Items
 {
 	// 基础物品模板
-	// 其他示例请参考 tModLoader 的 ExampleMod
+	// 更多写法可以参考模组加载器自带的示例模组
 	public class SpiriTerra : ModItem
 	{
 		// 物品显示名称和提示文本可在本地化文件中编辑

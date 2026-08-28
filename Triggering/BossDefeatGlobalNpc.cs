@@ -10,8 +10,8 @@ using Terraria.ModLoader;
 namespace TerrariaFriend.Triggering
 {
 	/// <summary>
-	/// 从 tModLoader 的 NPC 死亡钩子发出已确认的首领击败事件
-	/// 遭遇消失仍由快照单独产生首领结束事件
+	/// 首领死亡时发出确认击败事件
+	/// 首领从场上消失时仍由状态检测发出战斗结束事件
 	/// </summary>
 	[Autoload(Side = ModSide.Client)]
 	public sealed class BossDefeatGlobalNpc : GlobalNPC

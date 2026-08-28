@@ -20,6 +20,11 @@ from agent.memory.formation.store import FormationCheckpointStore
 from agent.memory.graphiti import GraphitiMemoryWriter
 from agent.memory.graphiti.backend import GraphitiMemoryBackend
 from agent.memory.graphiti.config import GraphitiSettings
+from agent.memory.retrieval import (
+    LongTermMemoryRetriever,
+    MemoryContextTool,
+    RecentMemoryRetriever,
+)
 from agent.models.execution import AgentExecutionResult
 from agent.models.trigger import (
     AgentResponse,
@@ -42,20 +47,31 @@ from agent.trace.store import LocalTraceStore
 logger = logging.getLogger("uvicorn.error")
 HP_DROP_REASON_THRESHOLD = -0.10
 
-# 三个角色共用同一个底层 HTTP Client 和 API 凭证
+# 三个模型角色共用同一套网络连接和密钥
 llm_settings = AgentLLMSettings.from_environment()
 llm_client = OpenAICompatibleClient(llm_settings.provider)
 decision_node = DecisionNode(RoleLLMClient(llm_client, llm_settings.decision))
 wiki_mcp_client = create_terraria_wiki_mcp_client(
     llm_settings.wiki_mcp_enabled
 )
+response_role_client = RoleLLMClient(llm_client, llm_settings.response)
+reasoning_role_client = RoleLLMClient(llm_client, llm_settings.reasoning)
+graphiti_settings = GraphitiSettings.from_environment()
+graphiti_backend = GraphitiMemoryBackend()
+trace_store = LocalTraceStore(trace_state_path())
+memory_context_tool = MemoryContextTool(
+    RecentMemoryRetriever(trace_store, response_role_client),
+    LongTermMemoryRetriever(
+        graphiti_backend,
+        group_id=graphiti_settings.falkordb_database,
+    ),
+)
 tool_executor = ToolExecutor(
     GameContextTools(),
     ToolPolicy(wiki_mcp_enabled=llm_settings.wiki_mcp_enabled),
     wiki_client=wiki_mcp_client,
+    memory_tool=memory_context_tool,
 )
-response_role_client = RoleLLMClient(llm_client, llm_settings.response)
-reasoning_role_client = RoleLLMClient(llm_client, llm_settings.reasoning)
 response_generator = ResponseGenerator(
     response_role_client,
     tool_executor=tool_executor,
@@ -70,9 +86,6 @@ reasoning_graph = ReasoningGraph(
     tool_executor=tool_executor,
 )
 periodic_gate = PeriodicGate()
-
-graphiti_settings = GraphitiSettings.from_environment()
-graphiti_backend = GraphitiMemoryBackend()
 memory_formation_runtime = MemoryFormationRuntime(
     MemoryExtractor(reasoning_role_client),
     GraphitiMemoryWriter(graphiti_backend),
@@ -91,7 +104,7 @@ async def _check_trace_relatedness(close_context, user_query):
 
 
 trace_runtime = TraceRuntime(
-    LocalTraceStore(trace_state_path()),
+    trace_store,
     relatedness_checker=_check_trace_relatedness,
     formation_runtime=memory_formation_runtime,
 )
@@ -105,7 +118,7 @@ async def lifespan(_: FastAPI):
             await wiki_mcp_client.start()
             logger.info("[WikiMCP] enabled=true status=connected")
         except Exception as exception:
-            # 维基故障不阻止智能体启动 推理器会收到紧凑工具错误
+            # 维基暂时不可用时仍允许智能体启动
             logger.warning(
                 "[WikiMCP] enabled=true status=unavailable error=%s",
                 exception,
@@ -162,7 +175,7 @@ async def _record_l1(
             response_occurred_at=(datetime.now(timezone.utc) if execution else None),
         )
     except Exception:
-        # 一级记忆持久化不得改变公开响应契约
+        # 记录记忆失败时仍正常返回回复
         logger.exception("[L1Trace] failed to record trigger")
 
 
@@ -231,7 +244,7 @@ async def handle_trigger(
     gate: Annotated[PeriodicGate, Depends(get_periodic_gate)],
     runtime: Annotated[TraceRuntime, Depends(get_trace_runtime)],
 ) -> AgentResponse:
-    """接收 Trigger 并执行 Decision 选择的处理路径"""
+    """接收游戏触发并按决策结果执行对应流程"""
     if trigger.trigger_type is TriggerType.PERIODIC:
         allowed, reason = gate.should_allow(
             hp_drop=trigger.vitals.hp_delta <= HP_DROP_REASON_THRESHOLD
@@ -246,7 +259,7 @@ async def handle_trigger(
             )
 
     try:
-        # 路由只负责输入转换和调用编排
+        # 这里仅整理输入并调用对应处理流程
         decision_input = DecisionInput.from_trigger(trigger)
         _log_decision_input(decision_input)
         started_at = time.perf_counter()
@@ -257,7 +270,7 @@ async def handle_trigger(
         else:
             decision_source = "code:HP_DROP"
     except (DecisionNodeError, ValidationError) as exception:
-        # 模型或 Schema 失败时返回业务错误 避免 FastAPI 进程崩溃
+        # 模型输出无效时返回错误信息 保持服务继续运行
         logger.error("Decision Node failed: %s", exception)
         await _record_l1(runtime, trigger)
         return AgentResponse(
@@ -321,6 +334,6 @@ async def handle_world_session_ended(
     request: WorldSessionEndedRequest,
     runtime: Annotated[TraceRuntime, Depends(get_trace_runtime)],
 ) -> None:
-    """同步处理卸载信号并与基于队列的触发路由分离"""
+    """离开世界时立即保存当前记忆 不经过普通事件队列"""
 
     await runtime.handle_world_session_ended(request.occurred_at)

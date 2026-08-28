@@ -6,7 +6,7 @@ using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
-	// 只检测少数高价值场景的稳定退出且不产生进入事件
+	// 只检测重要场景的稳定离开 进入事件由别处负责
 	public sealed class SceneFeatureExitDetector
 	{
 		private static readonly FeatureDefinition[] Features =
@@ -18,7 +18,7 @@ namespace TerrariaFriend.Triggering
 
 		private readonly Dictionary<string, FeatureState> _states = new Dictionary<string, FeatureState>();
 
-		// 退出必须与真正发出的场景特征进入事件成对 原始场景布尔值不能自行重新武装
+		// 只有已经发出过进入事件的场景 才能再发出一次对应的离开事件
 		public void Arm(GameEvent enteredEvent, uint tick)
 		{
 			if (enteredEvent.EventType != GameEventType.SceneFeatureEntered) return;

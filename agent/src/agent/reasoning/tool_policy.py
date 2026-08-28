@@ -24,6 +24,7 @@ REASON_ALLOWED_TOOLS = frozenset(
         GameContextToolName.GET_PROGRESS_CONTEXT,
         GameContextToolName.GET_SCENE_CONTEXT,
         GameContextToolName.GET_WORLD_CONTEXT,
+        GameContextToolName.GET_MEMORY_CONTEXT,
     }
 )
 

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class MemoryEpisode(BaseModel):
-    """记忆形成层接收的后端无关情节"""
+    """准备写入长期记忆的情节"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -18,7 +18,7 @@ class MemoryEpisode(BaseModel):
 
 
 class MemoryEvidenceEpisode(BaseModel):
-    """最小化的 Graphiti 情节来源且不包含一级快照"""
+    """长期记忆关系引用的简要情节来源"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -35,7 +35,7 @@ class MemoryEvidenceEpisode(BaseModel):
 
 
 class MemoryTriplet(BaseModel):
-    """图记忆适配器接收的显式关系写入结构"""
+    """准备写入图记忆的一条明确关系"""
 
     model_config = ConfigDict(extra="forbid")
 

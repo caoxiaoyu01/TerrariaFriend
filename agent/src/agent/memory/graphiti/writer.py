@@ -47,7 +47,7 @@ class MemoryWriteReport(CamelModel):
 
 
 class GraphitiMemoryWriter:
-    """隔离地将候选关系写入 Graphiti 且不修改一级记忆或执行提取"""
+    """把已经提取好的关系写入长期记忆 不改动近期记忆"""
 
     def __init__(self, backend: MemoryIngestionBackend) -> None:
         self.backend = backend

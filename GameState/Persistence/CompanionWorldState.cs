@@ -32,7 +32,7 @@ namespace TerrariaFriend.GameState.Persistence
 			}
 		}
 
-		// 返回 true 表示这是首次记录的格网
+		// 返回真表示玩家第一次到达这个地图格子
 		public bool MarkCellVisited(ExplorationCell cell)
 		{
 			bool added = _visitedCells.Add(cell);

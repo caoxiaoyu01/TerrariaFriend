@@ -15,7 +15,7 @@ from agent.trace.trace import Trace, TraceStatus
 
 
 class TraceManager:
-    """管理完整情节上的硬限制和显式自然边界"""
+    """管理近期记忆的容量和自然结束时机"""
 
     def __init__(
         self,
@@ -38,7 +38,7 @@ class TraceManager:
 
     @property
     def closed_traces(self) -> list[Trace]:
-        """有限近期历史的兼容别名"""
+        """保留旧属性名 继续返回最近关闭的记忆"""
 
         return list(self.recent_closed_traces)
 
@@ -49,7 +49,7 @@ class TraceManager:
 
         self._require_chronological(current, episode)
 
-        # 硬限制始终优先包括等待关闭状态
+        # 即使轨迹正等待关闭 也不能超过容量上限
         if self._must_split_before(episode):
             self._archive_current()
             return self._start_and_apply_boundary(episode)
@@ -62,7 +62,7 @@ class TraceManager:
         return self.current_trace
 
     def handle_world_session_ended(self, occurred_at: datetime) -> None:
-        """消费同步卸载信号且不虚构情节"""
+        """离开世界时关闭现有记忆 不额外创建事件"""
 
         if occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
             raise ValueError("occurred_at 必须包含时区")
@@ -70,7 +70,7 @@ class TraceManager:
             self._archive_current(ended_at=occurred_at)
 
     def close_current(self) -> None:
-        """如果当前窗口存在则在最后事实时间关闭"""
+        """如果存在当前记忆 就按最后一个事件的时间关闭"""
 
         self._archive_current()
 

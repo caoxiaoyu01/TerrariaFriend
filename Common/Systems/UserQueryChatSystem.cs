@@ -6,13 +6,13 @@ using TerrariaFriend.Triggering;
 
 namespace TerrariaFriend.Common.Systems
 {
-	// 从 Terraria 原生聊天提交中识别 Agent Query
+	// 从游戏聊天消息中识别发给智能体的问题
 	[Autoload(Side = ModSide.Client)]
 	public sealed class UserQueryChatSystem : ModSystem
 	{
 		public override void Load()
 		{
-			// 在原生聊天开关处理完成后设置默认路由标记
+			// 聊天框打开后自动填入智能体消息标记
 			On_Main.DoUpdate_Enter_ToggleChat += DoUpdateEnterToggleChat;
 
 			// 多人游戏在客户端发送消息前经过此入口
@@ -71,7 +71,7 @@ namespace TerrariaFriend.Common.Systems
 				return false;
 			}
 
-			// 去掉路由标记并忽略空 Query
+			// 去掉消息标记并忽略空问题
 			string query = text[1..].Trim();
 			if (query.Length > 0)
 			{

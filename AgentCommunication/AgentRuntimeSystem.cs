@@ -16,12 +16,12 @@ namespace TerrariaFriend.AgentCommunication
 	{
 		private readonly AgentClient _client = new AgentClient();
 
-		// 用户查询与游戏事件分队列保存以保证固定优先级
+		// 用户问题和游戏事件分开排队 方便保证处理顺序
 		private readonly Queue<TriggerEvent> _pendingUserQueries = new Queue<TriggerEvent>();
 		private readonly Queue<TriggerEvent> _pendingGameEvents = new Queue<TriggerEvent>();
 		private readonly HashSet<GameEvent> _pendingGameEventKeys = new HashSet<GameEvent>();
 
-		// 后台请求只写入此队列 主线程负责读取并更新 UI
+		// 后台线程只存放结果 界面由游戏主线程更新
 		private readonly ConcurrentQueue<(TriggerType TriggerType, AgentResponse Response)> _completedResponses = new();
 		private Task? _activeRequest;
 
@@ -37,8 +37,8 @@ namespace TerrariaFriend.AgentCommunication
 		{
 			if (gameEvent.EventType != GameEventType.WorldSessionEnded) return;
 
-			// 世界卸载会立即清空普通队列
-			// 仅在这个少见边界等待 Python 持久关闭当前一级轨迹
+			// 离开世界时清空还未处理的普通请求
+			// 此时等待服务端保存并关闭当前记忆轨迹
 			try
 			{
 				using var timeout = new System.Threading.CancellationTokenSource(
@@ -62,31 +62,31 @@ namespace TerrariaFriend.AgentCommunication
 		public override void PostUpdatePlayers()
 		{
 
-			// 检查上一个请求是否结束
+			// 先处理上一个请求的结果
 			if (_activeRequest?.IsCompleted == true) _activeRequest = null;
 			ProcessCompletedResponses();
 
 			if (Main.gameMenu) return;
 
-			// 按照优先级获取 trigger
+			// 按优先级取出下一个事件
 			TriggerEvent? periodic = DrainIncomingTriggers();
 			if (_activeRequest != null) return;
 
 			TriggerEvent? next = TakeNextPending() ?? periodic;
 			if (next == null) return;
 
-			// 不等待网络结果；每次只允许一个在途请求
+			// 请求放到后台执行 同一时间只发送一个
 			Mod.Logger.Info($"[AgentRuntime] sending {next.TriggerType}");
 			_activeRequest = SendAndCaptureAsync(next);
 		}
 
-		// 将入口队列整理成 USER_QUERY > GAME_EVENT 且 PERIODIC 永不进入 pending
+		// 玩家问题优先于游戏事件 周期检查不进入等待队列
 		private TriggerEvent? DrainIncomingTriggers()
 		{
 			TriggerEvent? periodic = null;
 			while (TriggerSystem.TryDequeue(out TriggerEvent? trigger) && trigger != null)
 			{
-				// 按照优先级选取事件 priority queue
+				// 从优先级最高的队列取出事件
 				switch (trigger.TriggerType)
 				{
 					case TriggerType.USER_QUERY:
@@ -114,7 +114,7 @@ namespace TerrariaFriend.AgentCommunication
 
 		private void EnqueueGameEvent(TriggerEvent trigger)
 		{
-			// 只对仍在等待的完全相同事件去重
+			// 只合并仍在排队且内容完全相同的事件
 			if (trigger.GameEvent == null || _pendingGameEventKeys.Add(trigger.GameEvent))
 			{
 				_pendingGameEvents.Enqueue(trigger);
@@ -123,7 +123,7 @@ namespace TerrariaFriend.AgentCommunication
 
 		private TriggerEvent? TakeNextPending()
 		{
-			// 用户问题始终先于游戏事件
+			// 始终先处理玩家问题
 			if (_pendingUserQueries.Count > 0)
 			{
 				return _pendingUserQueries.Dequeue();
@@ -140,9 +140,9 @@ namespace TerrariaFriend.AgentCommunication
 		{
 			try
 			{
-				// 发送时事件
+				// 记录真正发送请求的时间
 				AgentResponse response = await _client.SendTriggerAsync(trigger).ConfigureAwait(false);
-				// 放入结果队列
+				// 把回复交回游戏主线程
 				_completedResponses.Enqueue((trigger.TriggerType, response));
 			}
 			catch (Exception exception)
@@ -158,7 +158,7 @@ namespace TerrariaFriend.AgentCommunication
 			}
 		}
 
-		// 此方法只在游戏更新线程执行 因此可以安全更新 UI
+		// 这里运行在游戏主线程 可以安全更新界面
 		private void ProcessCompletedResponses()
 		{
 			while (_completedResponses.TryDequeue(out var completed))
@@ -181,7 +181,7 @@ namespace TerrariaFriend.AgentCommunication
 
 		private void ClearPending()
 		{
-			// 切换世界时不保留旧世界的待处理 Trigger
+			// 切换世界后丢弃旧世界尚未处理的事件
 			_pendingUserQueries.Clear();
 			_pendingGameEvents.Clear();
 			_pendingGameEventKeys.Clear();

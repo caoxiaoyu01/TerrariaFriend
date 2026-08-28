@@ -9,7 +9,7 @@ namespace TerrariaFriend.GameState.Collectors
 		private const float PixelsPerTile = 16f;
 		private const float TicksPerSecond = 60f;
 
-		// 复制玩家当前属性，避免异步 Agent 直接读取实时 Player
+		// 复制一份玩家状态 避免后台请求读取正在变化的游戏对象
 		public static PlayerSnapshot Capture(Player player)
 		{
 			List<BuffSummary> buffs = new List<BuffSummary>();

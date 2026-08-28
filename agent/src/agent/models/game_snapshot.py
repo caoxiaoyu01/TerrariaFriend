@@ -3,7 +3,7 @@ from typing import Any
 from agent.models.trigger_base import CamelModel
 
 
-# 快照的各个部分保持 C# 原始 JSON 结构并作为工具数据源
+# 保留游戏端传来的字段结构 供工具直接读取
 class GameSnapshot(CamelModel):
     tick: int
     player: dict[str, Any]

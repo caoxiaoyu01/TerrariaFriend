@@ -17,21 +17,21 @@ from agent.models.trigger import (
     约定输入输出 schema
 """
 
-# 决策节点只允许选择三种后续路径
+# 决策结果只能走以下三条路径
 class DecisionAction(str, Enum):
     IGNORE = "IGNORE"
     RESPOND = "RESPOND"
     REASON = "REASON"
 
 
-# 根据 Trigger 类型只携带当前判断需要的上下文
+# 每种触发只携带当前判断需要的信息
 class DecisionGameEvent(BaseModel):
     event_type: GameEventType
     payload: dict[str, str | int]
 
     @classmethod
     def from_request(cls, game_event: GameEventRequest) -> "DecisionGameEvent":
-        # 将通用 Subject 字段转换成各事件的语义 payload
+        # 把通用事件主体转换成对应事件数据
         payload_names = {
             GameEventType.PLAYER_DIED: ("player_id", "player_name"),
             GameEventType.BOSS_SPAWNED: ("boss_type_id", "boss_name"),
@@ -77,10 +77,10 @@ class DecisionInput(BaseModel):
     periodic_summary: PeriodicSummary | None = None
 
 
-    # 校验
+    # 检查事件数据是否完整
     @model_validator(mode="after")
     def validate_trigger_context(self) -> "DecisionInput":
-        # 每种 Trigger 必须提供自己的核心数据
+        # 每种触发都必须带上自己的核心数据
         if self.trigger_type is TriggerType.USER_QUERY and not self.user_query:
             raise ValueError("USER_QUERY 缺少 user_query")
         if self.trigger_type is TriggerType.GAME_EVENT:
@@ -94,7 +94,7 @@ class DecisionInput(BaseModel):
 
     @classmethod
     def from_trigger(cls, trigger: TriggerRequest) -> "DecisionInput":
-        # 将 HTTP 请求转换成 Decision Node 专用输入
+        # 把接口请求整理成决策节点使用的输入
         return cls(
             trigger_type=trigger.trigger_type,
             vitals=trigger.vitals,
@@ -109,7 +109,7 @@ class DecisionInput(BaseModel):
         )
 
     def to_prompt_payload(self) -> dict[str, Any]:
-        # 只发送当前 Trigger 对应的紧凑动态字段
+        # 只发送当前触发真正需要的字段
         payload: dict[str, Any] = {"trigger_type": self.trigger_type.value}
         if self.trigger_type is TriggerType.USER_QUERY:
             payload["query"] = self.user_query
@@ -129,7 +129,7 @@ class DecisionInput(BaseModel):
         return payload
 
 
-# 模型输出必须通过 Pydantic 校验后才能进入 Route
+# 模型输出检查通过后才能进入下一步
 class DecisionResult(BaseModel):
     action: DecisionAction
     reason: str

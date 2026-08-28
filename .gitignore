@@ -53,9 +53,17 @@ Desktop.ini
 *.log
 *.tmp
 *.temp
+*.bak
+*.db
+*.sqlite
+*.sqlite3
+*.rdb
+*.aof
+dump.rdb
+appendonlydir/
+logs/
 .cache/
-agent/data/l1_trace_state.json
-agent/data/l2_formation_state.json
+agent/data/
 
 # 测试与独立实验代码
 tests/

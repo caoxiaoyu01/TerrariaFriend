@@ -33,7 +33,7 @@ class FormationCheckpointState(CamelModel):
 
 
 class FormationCheckpointStore:
-    """小型持久二级处理状态且不存储情节内容"""
+    """只记录长期记忆处理进度 不重复保存情节内容"""
 
     def __init__(self, path: Path) -> None:
         self.path = path

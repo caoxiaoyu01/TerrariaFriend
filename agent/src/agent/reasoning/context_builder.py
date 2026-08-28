@@ -11,7 +11,7 @@ class ContextBuilder:
         decision_input: DecisionInput,
         decision_reason: str,
     ) -> dict[str, Any]:
-        # 只构造 Reasoner 理解本次任务所需的最小上下文
+        # 只提供回答本次问题需要的信息
         context: dict[str, Any] = {
             "trigger_type": trigger.trigger_type.value,
             "priority": trigger.priority.value,

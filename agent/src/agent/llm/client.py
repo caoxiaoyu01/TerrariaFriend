@@ -165,7 +165,7 @@ class RoleLLMClient:
         )
 
 
-# 保留旧名称以避免外部测试或调用方在迁移期间中断
+# 暂时保留旧名称 让已有调用继续可用
 SiliconFlowClient = OpenAICompatibleClient
 
 

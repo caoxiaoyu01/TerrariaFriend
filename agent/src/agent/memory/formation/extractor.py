@@ -18,7 +18,7 @@ class MemoryExtractionError(RuntimeError):
 
 
 class MemoryExtractor:
-    """执行一次不使用工具的结构化二级价值和关系提取调用"""
+    """调用一次模型 判断情节价值并提取长期关系"""
 
     def __init__(self, model_client: RoleLLMClient) -> None:
         self.model_client = model_client
@@ -66,8 +66,8 @@ def _model_input(extraction_input: MemoryExtractionInput) -> dict[str, Any]:
 
 
 def _episode_projection(episode) -> dict[str, Any]:
-    # 触发事件是客观的情节主体
-    # 智能体响应文本 工具历史 维基输出和执行推理均有意省略
+    # 只提取实际发生的触发事件
+    # 不把回复 工具记录 维基结果和内部推理写入长期记忆
     event = episode.events[0]
     capsule = event.capsule
     return {

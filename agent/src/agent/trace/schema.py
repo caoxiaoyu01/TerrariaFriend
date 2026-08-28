@@ -15,7 +15,7 @@ class TraceOrigin(str, Enum):
 
 
 class TraceMetadata(CamelModel):
-    """一级轨迹层所需的轻量客观来源信息"""
+    """记录事件来自哪里以及何时发生"""
 
     origin: TraceOrigin
     trigger_type: TriggerType
@@ -23,7 +23,7 @@ class TraceMetadata(CamelModel):
 
 
 class TraceEvent(CamelModel):
-    """携带现有状态胶囊且不可变的一级事件"""
+    """保存后不再修改的近期记忆事件"""
 
     id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
     occurred_at: datetime

@@ -5,7 +5,7 @@ using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.GameState.Collectors
 {
-	// 使用玩家附近的有限 tile 范围补充没有 ZoneXXX 的场景
+	// 扫描玩家附近的小块区域 补充游戏没有直接提供的场景
 	internal static class SceneLocalFeatureDetector
 	{
 		private const int ScanRadiusTiles = 30;

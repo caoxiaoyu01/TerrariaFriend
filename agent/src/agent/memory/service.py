@@ -4,10 +4,7 @@ from agent.memory.ports import MemoryBackend, MemoryEpisode
 
 
 class MemoryService:
-    """围绕可替换记忆后端的小型应用边界
-
-    运行时摄取 写入门控 轨迹分段和检索工具不属于当前初始框架
-    """
+    """为不同长期记忆实现提供统一的读写入口"""
 
     def __init__(self, backend: MemoryBackend) -> None:
         self._backend = backend

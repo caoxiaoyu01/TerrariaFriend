@@ -22,7 +22,7 @@ class ToolHistoryMetadata(CamelModel):
 
 
 class AgentExecutionResult(CamelModel):
-    """内部执行结果且不改变公开响应结构"""
+    """保存一次内部执行结果 对外回复格式保持不变"""
 
     message: str
     decision_action: DecisionAction
@@ -34,7 +34,7 @@ class AgentExecutionResult(CamelModel):
 def select_game_context(
     collected_context: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """仅保留六个进程内游戏快照工具的结果"""
+    """只保留游戏状态工具返回的六类结果"""
 
     return {
         key: value

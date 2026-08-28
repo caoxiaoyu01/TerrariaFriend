@@ -47,7 +47,7 @@ def build_episode(
     *,
     episode_id: str | None = None,
 ) -> Episode:
-    """仅根据显式事务成员关系构建一个情节"""
+    """把同一次事件和回复组成一个完整情节"""
 
     if not events:
         raise ValueError("Episode 至少需要一个 TraceEvent")
@@ -98,7 +98,7 @@ def build_trigger_episode(
     execution: AgentExecutionResult | None = None,
     response_occurred_at: datetime | None = None,
 ) -> Episode | None:
-    """仅在已知触发产生响应时建立关联"""
+    """只有触发确实产生回复时才把两者关联起来"""
 
     if trigger.trigger_type is TriggerType.USER_QUERY and execution is None:
         raise ValueError("USER_QUERY Episode 需要对应的 AgentExecutionResult")

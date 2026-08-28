@@ -12,7 +12,7 @@ def trigger_to_trace_event(
     correlation_id: str | None = None,
     event_id: str | None = None,
 ) -> TraceEvent | None:
-    """转换单个原子触发请求且不重新采集游戏状态"""
+    """把一次触发请求转换成轨迹事件 不重新采集游戏状态"""
 
     capsule = project_trigger_capsule(trigger)
     if capsule is None:
@@ -40,7 +40,7 @@ def response_to_trace_event(
     correlation_id: str,
     event_id: str | None = None,
 ) -> TraceEvent | None:
-    """转换仅由当前触发请求产生的响应"""
+    """把当前触发产生的回复转换成轨迹事件"""
 
     capsule = project_response_capsule(trigger, execution)
     if capsule is None:

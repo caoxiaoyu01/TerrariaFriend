@@ -56,7 +56,7 @@ async def is_related_to_close_context(
     *,
     model_client: RoleLLMClient,
 ) -> TraceContinuationResult:
-    """执行一次隔离的结构化分类调用且不使用工具或智能体路由"""
+    """单独判断问题是否与刚结束的记忆有关"""
 
     completion = await model_client.generate_structured(
         system_prompt=CLOSE_CONTEXT_RELEVANCE_PROMPT,

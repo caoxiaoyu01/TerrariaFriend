@@ -4,7 +4,7 @@ using Terraria.ModLoader;
 
 namespace TerrariaFriend.GameState.Tracking
 {
-	// 通过受伤 Hook 向短期事件缓冲写入数据
+	// 玩家受伤时把记录放进短期缓存
 	public class CombatTracker : ModPlayer
 	{
 		private const float TicksPerSecond = 60f;
@@ -30,7 +30,7 @@ namespace TerrariaFriend.GameState.Tracking
 			return _events.GetRecentDamage(currentTick);
 		}
 
-		// 只在战斗条件首次成立时记录开始 tick
+		// 只在刚进入战斗时记录开始时刻
 		internal float UpdateCombatState(bool combatCondition, uint currentTick)
 		{
 			if (!combatCondition)

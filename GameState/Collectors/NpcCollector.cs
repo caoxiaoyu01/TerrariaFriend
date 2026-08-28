@@ -12,7 +12,7 @@ namespace TerrariaFriend.GameState.Collectors
 	{
 		private const float PixelsPerTile = 16f;
 
-		// 单次扫描生成常驻 附近常驻 特殊非玩家角色与活动首领快照
+		// 一次扫描收集城镇角色 附近角色 特殊角色和活动首领
 		public static NpcSnapshot Capture(Player player, float radiusTiles)
 		{
 			Dictionary<int, TownNpcSummary> townNpcs = new Dictionary<int, TownNpcSummary>();
@@ -94,7 +94,7 @@ namespace TerrariaFriend.GameState.Collectors
 				activeBossList);
 		}
 
-		// 特殊npc
+		// 收集特殊非玩家角色
 		private static bool IsSpecialNpc(int type)
 		{
 			return type == NPCID.TravellingMerchant

@@ -41,7 +41,7 @@ CAPSULE_PROJECTORS: dict[GameEventType, CapsuleProjector] = {
 def project_trigger_capsule(
     trigger: TriggerRequest,
 ) -> SupportedStateCapsule | None:
-    """仅投影单个原子触发请求携带的事件时数据"""
+    """从一次触发请求中提取发生当时的事件数据"""
 
     if trigger.game_snapshot is None:
         return None
@@ -63,7 +63,7 @@ def project_response_capsule(
     trigger: TriggerRequest,
     execution: AgentExecutionResult,
 ) -> SupportedStateCapsule | None:
-    """根据不可变的请求时快照投影响应"""
+    """根据请求发生时的游戏状态整理回复记录"""
 
     if trigger.game_snapshot is None or not execution.message:
         return None

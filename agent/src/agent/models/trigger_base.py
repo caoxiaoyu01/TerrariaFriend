@@ -7,5 +7,5 @@ def to_camel(value: str) -> str:
 
 
 class CamelModel(BaseModel):
-    # 对齐 C# JsonNamingPolicy.CamelCase
+    # 字段名与游戏端发送的格式保持一致
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)

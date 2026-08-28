@@ -68,7 +68,7 @@ namespace TerrariaFriend.Common.UI
 			if (_panel == null)
 				return;
 
-			// 使用 UIText 相同的字体换行方式测量实际文本高度
+			// 按游戏文字控件的换行方式计算实际高度
 			float textWidth = PanelWidth - PanelPadding * 2f;
 			string wrappedText = FontAssets.MouseText.Value.CreateWrappedText(
 				message,

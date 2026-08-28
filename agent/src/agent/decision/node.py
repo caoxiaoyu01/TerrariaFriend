@@ -17,7 +17,7 @@ class DecisionNodeError(RuntimeError):
     pass
 
 
-# 组合 Prompt 模型客户端和输出校验
+# 负责调用决策模型并检查返回结果
 class DecisionNode:
     def __init__(self, model_client: RoleLLMClient) -> None:
         self._model_client = model_client
@@ -28,7 +28,7 @@ class DecisionNode:
 
     async def decide(self, decision_input: DecisionInput) -> DecisionResult:
         try:
-            # 固定 Prompt 与紧凑动态输入分开构造
+            # 固定规则和本次输入分开发送
             completion = await self._model_client.generate_structured(
                 system_prompt=DECISION_SYSTEM_PROMPT,
                 input_data=decision_input.to_prompt_payload(),

@@ -18,7 +18,7 @@ class TerrariaWikiMCPError(RuntimeError):
 
 
 class TerrariaWikiMCPClient:
-    """复用同一个 stdio MCP 会话调用 Terraria Wiki 工具"""
+    """复用同一个连接查询泰拉维基"""
 
     def __init__(
         self,

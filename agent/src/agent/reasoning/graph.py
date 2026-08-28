@@ -181,7 +181,7 @@ class ReasoningGraph:
                 time.perf_counter() - started_at
             )
 
-        # 达到 Guardrail 后不再允许模型继续请求工具
+        # 达到轮次或工具上限后直接生成最终回复
         if force_final and result.status is ReasonerStatus.NEED_TOOL:
             result = ReasonerResult(
                 status=ReasonerStatus.FINAL,

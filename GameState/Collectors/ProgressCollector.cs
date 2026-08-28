@@ -40,7 +40,7 @@ namespace TerrariaFriend.GameState.Collectors
 				"lunatic_cultist_defeated", "Lunatic Cultist Defeated")
 		};
 
-		// 将 Terraria 原生进度标志和持久化探索记录转换成语义列表
+		// 把游戏进度和探索记录整理成容易理解的列表
 		public static ProgressSnapshot Capture()
 		{
 			List<string> bosses = new List<string>();

@@ -3,6 +3,11 @@ from typing import Any, Callable, Protocol
 
 from agent.decision.schema import DecisionAction
 from agent.models.game_snapshot import GameSnapshot
+from agent.memory.retrieval import (
+    MEMORY_TOOL_DESCRIPTION,
+    MemoryContextTool,
+    MemoryToolArguments,
+)
 from agent.reasoning.schema import GameContextToolName, WikiToolArguments
 from agent.reasoning.tool_policy import ToolPolicy
 
@@ -17,6 +22,7 @@ TOOL_DESCRIPTIONS = {
     GameContextToolName.GET_PROGRESS_CONTEXT.value: "读取已击败 Boss、世界里程碑和已访问关键区域",
     GameContextToolName.GET_SCENE_CONTEXT.value: "读取当前群系、层级、迷你群系、特殊区域和附近环境 Buff",
     GameContextToolName.GET_WORLD_CONTEXT.value: "读取当前时间、月相、天气和世界事件状态",
+    GameContextToolName.GET_MEMORY_CONTEXT.value: MEMORY_TOOL_DESCRIPTION,
     GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE.value: (
         "查询可靠的 Terraria 外部知识，适合具体获取方式、配方、掉落、召唤条件、位置和游戏机制"
     ),
@@ -69,10 +75,12 @@ class ToolExecutor:
         registry: GameContextTools | None = None,
         policy: ToolPolicy | None = None,
         wiki_client: TerrariaWikiToolClient | None = None,
+        memory_tool: MemoryContextTool | None = None,
     ) -> None:
         self.registry = registry or GameContextTools()
         self.policy = policy or ToolPolicy()
         self.wiki_client = wiki_client
+        self.memory_tool = memory_tool
 
     @property
     def wiki_mcp_enabled(self) -> bool:
@@ -92,12 +100,15 @@ class ToolExecutor:
         mode: DecisionAction,
     ) -> dict[str, dict[str, Any]]:
         wiki_arguments = WikiToolArguments.model_json_schema()["properties"]
+        memory_arguments = MemoryToolArguments.model_json_schema()["properties"]
         return {
             name.value: {
                 "description": TOOL_DESCRIPTIONS[name.value],
                 "args": (
                     wiki_arguments
                     if name is GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE
+                    else memory_arguments
+                    if name is GameContextToolName.GET_MEMORY_CONTEXT
                     else {}
                 ),
             }
@@ -128,6 +139,14 @@ class ToolExecutor:
             raise ToolPermissionError(
                 f"{mode.value} 不允许调用工具 {name.value}"
             )
+        if name is GameContextToolName.GET_MEMORY_CONTEXT:
+            if self.memory_tool is None:
+                raise RuntimeError("玩家记忆工具不可用")
+            validated_arguments = MemoryToolArguments.model_validate(arguments)
+            result = await self.memory_tool.get_memory_context(
+                **validated_arguments.model_dump(mode="json")
+            )
+            return "memory", result.model_dump(mode="json")
         if name is not GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE:
             return self.registry.execute(name, arguments, snapshot)
         if self.wiki_client is None:

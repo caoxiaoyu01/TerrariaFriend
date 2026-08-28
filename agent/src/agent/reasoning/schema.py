@@ -3,6 +3,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
+from agent.memory.retrieval import MemoryToolArguments
+
 
 class ReasonerStatus(str, Enum):
     NEED_TOOL = "NEED_TOOL"
@@ -16,6 +18,7 @@ class GameContextToolName(str, Enum):
     GET_PROGRESS_CONTEXT = "get_progress_context"
     GET_SCENE_CONTEXT = "get_scene_context"
     GET_WORLD_CONTEXT = "get_world_context"
+    GET_MEMORY_CONTEXT = "get_memory_context"
     LOOKUP_TERRARIA_KNOWLEDGE = "lookup_terraria_knowledge"
 
 
@@ -67,8 +70,16 @@ class WikiKnowledgeToolCall(BaseModel):
         return self.arguments.model_dump(mode="json")
 
 
+class MemoryContextToolCall(BaseModel):
+    name: Literal[GameContextToolName.GET_MEMORY_CONTEXT]
+    arguments: MemoryToolArguments
+
+    def arguments_dict(self) -> dict[str, object]:
+        return self.arguments.model_dump(mode="json")
+
+
 ToolCall = Annotated[
-    GameContextToolCall | WikiKnowledgeToolCall,
+    GameContextToolCall | WikiKnowledgeToolCall | MemoryContextToolCall,
     Field(discriminator="name"),
 ]
 TOOL_CALL_ADAPTER = TypeAdapter(ToolCall)

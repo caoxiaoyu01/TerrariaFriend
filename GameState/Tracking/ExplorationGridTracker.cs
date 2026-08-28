@@ -9,7 +9,7 @@ using TerrariaFriend.Triggering;
 
 namespace TerrariaFriend.GameState.Tracking
 {
-	// 根据玩家跨越的固定格网识别未探索空间
+	// 按固定大小划分地图 用来判断玩家是否到达新区域
 	public sealed class ExplorationGridTracker
 	{
 		public const int ExplorationCellSize = 100;
@@ -26,7 +26,7 @@ namespace TerrariaFriend.GameState.Tracking
 			ExplorationCell currentCell = FromPosition(snapshot.Player);
 			SceneEnvironment currentEnvironment = CaptureEnvironment(snapshot.Scene);
 
-			// 第一次采集只建立出生位置 baseline
+			// 第一次采集只记住起点 不触发探索事件
 			if (_lastCell == null)
 			{
 				MarkCellVisited(currentCell);
@@ -98,7 +98,7 @@ namespace TerrariaFriend.GameState.Tracking
 
 		private bool MarkCellVisited(ExplorationCell cell)
 		{
-			// 会话集合避免多人同步覆盖客户端临时状态后重复触发
+			// 本次游戏内再记一份 防止多人同步后重复触发
 			if (!_sessionVisitedCells.Add(cell)) return false;
 			return ModContent.GetInstance<CompanionWorldState>().MarkCellVisited(cell);
 		}

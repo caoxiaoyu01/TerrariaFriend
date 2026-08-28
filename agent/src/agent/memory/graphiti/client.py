@@ -14,7 +14,7 @@ def create_graphiti(
     *,
     agent_settings: AgentLLMSettings | None = None,
 ) -> Graphiti:
-    """使用项目的 DeepSeek 兼容模型和 Gemini 构建 Graphiti"""
+    """使用项目配置的模型创建长期记忆客户端"""
 
     graphiti_settings = settings or GraphitiSettings.from_environment()
     llm_settings = agent_settings or AgentLLMSettings.from_environment()

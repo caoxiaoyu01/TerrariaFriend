@@ -13,7 +13,7 @@ from agent.memory.ports import MemoryEpisode, MemoryEvidenceEpisode, MemoryTripl
 
 
 class GraphitiMemoryBackend:
-    """位于后端无关记忆端口之后的 Graphiti 适配器"""
+    """负责读写图结构的长期记忆"""
 
     def __init__(
         self,
@@ -61,7 +61,7 @@ class GraphitiMemoryBackend:
         self,
         episode: MemoryEvidenceEpisode,
     ) -> None:
-        """保存确定性来源且不执行自由形式提取"""
+        """直接保存明确的证据来源 不让模型再次提取"""
 
         node = EpisodicNode(
             uuid=episode.episode_id,
@@ -121,9 +121,8 @@ class GraphitiMemoryBackend:
         except EdgeNotFoundError:
             pass
 
-        # 现有累计边可能早于确定性证据节点持久化功能
-        # 边引用来源前必须确保合并后的完整来源集合存在
-        # 旧边已携带情节标识时仅检查当前摄取批次并不充分
+        # 旧数据可能只有关系而没有对应的证据节点
+        # 保存关系前补齐它引用的全部证据节点
         await self._ensure_evidence_nodes(
             evidence_ids,
             group_id=triplet.group_id,
@@ -178,9 +177,8 @@ class GraphitiMemoryBackend:
         for episode_id in episode_ids:
             if episode_id in existing_by_id:
                 continue
-            # 显式修复在证据情节节点持久化功能出现前写入的旧累计边
-            # 保留原始标识作为来源身份
-            # 时间戳根据边的最早有效时间保守恢复
+            # 为旧关系补建缺失的证据节点
+            # 沿用原标识并使用关系最早生效时间
             recovered = EpisodicNode(
                 uuid=episode_id,
                 name=f"l1-evidence-{episode_id}",

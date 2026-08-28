@@ -30,7 +30,7 @@ class _PendingEpisode:
 
 
 class TraceRuntime:
-    """连接已完成事务与持久一级状态的轻量运行时桥梁"""
+    """把完成的事件和回复写入近期记忆"""
 
     def __init__(
         self,
@@ -126,7 +126,7 @@ class TraceRuntime:
             self._schedule_newly_closed(previous_closed_ids)
 
     def resume_closed_traces(self) -> None:
-        """仅恢复尚未被二级检查点覆盖的已关闭轨迹"""
+        """重新处理还没有写入长期记忆的已关闭轨迹"""
 
         if self.formation_runtime is None:
             return

@@ -7,7 +7,7 @@ using TerrariaFriend.Common.UI;
 
 namespace TerrariaFriend.Common.Systems
 {
-	// 管理客户端 Companion UI 的创建 更新和绘制
+	// 负责创建 更新和绘制伙伴消息界面
 	[Autoload(Side = ModSide.Client)]
 	public class AgentMessageUISystem : ModSystem
 	{
@@ -59,8 +59,8 @@ namespace TerrariaFriend.Common.Systems
 				InterfaceScaleType.UI));
 		}
 
-		// 智能体完整消息进入现有显示区域的统一入口
-		// 只应在游戏客户端主线程调用
+		// 所有智能体回复都从这里显示
+		// 只能由游戏客户端主线程调用
 		public static void ShowMessage(string message)
 		{
 			if (Main.dedServ)

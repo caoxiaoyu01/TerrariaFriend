@@ -92,14 +92,14 @@ class PeriodicSummary(CamelModel):
     held_item: str
 
 
-# 三种 Trigger 共享的当前生命状态
+# 三种触发共用的当前生命状态
 class VitalsContext(CamelModel):
     hp_ratio: float = Field(ge=0.0, le=1.0)
     hp_delta: float
     in_combat: bool
 
 
-# 接口服务接收的 C# 触发事件请求结构
+# 接口服务接收的游戏端事件结构
 class TriggerRequest(CamelModel):
     trigger_type: TriggerType
     timestamp: datetime
@@ -109,7 +109,7 @@ class TriggerRequest(CamelModel):
     event_context: EventContext | None = None
     user_query: str | None = None
     periodic_summary: PeriodicSummary | None = None
-    # 决策不读取完整快照 仅在推理时作为工具数据源
+    # 决策阶段不读取完整快照 只在推理阶段供工具查询
     game_snapshot: GameSnapshot | None = None
 
 

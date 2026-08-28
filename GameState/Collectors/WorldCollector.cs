@@ -25,7 +25,7 @@ namespace TerrariaFriend.GameState.Collectors
 			(() => LanternNight.LanternsUp, "LanternNight", "Lantern Night", WorldEventCategory.Peaceful)
 		};
 
-		// 月相数字，影响npc售卖的物件种类
+		// 月相会影响部分非玩家角色出售的物品
 		private static readonly string[] MoonPhaseNames =
 		{
 			"Full Moon",
@@ -38,7 +38,7 @@ namespace TerrariaFriend.GameState.Collectors
 			"Waxing Gibbous"
 		};
 
-		// 将 Terraria 原始字段转换为不依赖游戏类型的世界快照
+		// 把游戏内部状态整理成通用的世界快照
 		public static WorldSnapshot Capture()
 		{
 			return new WorldSnapshot(
@@ -108,7 +108,7 @@ namespace TerrariaFriend.GameState.Collectors
 				return false;
 			}
 
-			// 入侵剩余数量换算成 0~1 的已完成比例
+			// 把入侵剩余数量换算成零到一的完成比例
 			float? progress = Main.invasionSizeStart > 0
 				? Math.Clamp(1f - (float)Main.invasionSize / Main.invasionSizeStart, 0f, 1f)
 				: null;

@@ -180,7 +180,7 @@ CapsuleDataT = TypeVar("CapsuleDataT", bound=CamelModel)
 
 
 class StateCapsule(CamelModel, Generic[CapsuleDataT]):
-    """客观事件相关投影的后端无关封装"""
+    """只保存事件本身相关的简要事实"""
 
     capsule_type: CapsuleType
     captured_at: datetime

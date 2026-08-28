@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace TerrariaFriend.GameState.Snapshots
 {
-	// 只保留 Agent 高频决策需要的轻量背包摘要
+	// 只保留智能体经常需要的背包摘要
 	public sealed record InventorySnapshot(
 		IReadOnlyList<HotbarSlotSummary> Hotbar,
 		ArmorSnapshot Armor,

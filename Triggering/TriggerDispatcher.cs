@@ -6,17 +6,17 @@ using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.Triggering
 {
-	// 统一生成 TriggerEvent 并写入通信入口队列
+	// 统一创建触发事件并放入发送队列
 	public sealed class TriggerDispatcher
 	{
-		// 创建 trigger 事件队列
+		// 保存等待发送的事件
 		private readonly ConcurrentQueue<TriggerEvent> _pending = new ConcurrentQueue<TriggerEvent>();
 
 		public event Action<TriggerEvent>? TriggerDispatched;
 
 		public int PendingCount => _pending.Count;
 
-		// 三种 triggerEvent -> event 实例
+		// 为三种触发创建对应事件
 		public TriggerEvent DispatchUserQuery(
 			string query,
 			VitalsContext vitals,
@@ -78,7 +78,7 @@ namespace TerrariaFriend.Triggering
 
 		private TriggerEvent Dispatch(TriggerEvent trigger)
 		{
-			// 放入队列
+			// 等待通信模块发送
 			_pending.Enqueue(trigger);
 			TriggerDispatched?.Invoke(trigger);
 			return trigger;

@@ -24,7 +24,7 @@ namespace TerrariaFriend.Triggering
 		private readonly TriggerDispatcher _dispatcher = new TriggerDispatcher();
 		private float? _previousVitalsHpRatio;
 
-		// 世界卸载时同步触发且不经过随后会被清空的等待队列
+		// 离开世界时立即保存 不放进马上会被清空的普通队列
 		public event Action<GameEvent>? BoundarySignalDispatched;
 
 		public override void OnWorldLoad()
@@ -46,7 +46,7 @@ namespace TerrariaFriend.Triggering
 			bool snapshotDue = Main.GameUpdateCount % SnapshotPollIntervalTicks == 0;
 			if (!periodicDue && !snapshotDue) return;
 
-			// 同一 tick 只采集一次完整 Snapshot
+			// 同一个游戏刻只采集一次完整状态
 			GameSnapshot snapshot = GameStateCollector.Capture();
 			_previousVitalsHpRatio ??= snapshot.Combat.HpRatio;
 			if (snapshotDue)
@@ -105,7 +105,7 @@ namespace TerrariaFriend.Triggering
 			}
 		}
 
-		// 未来游戏输入框调用此入口
+		// 游戏聊天框通过这个入口提交问题
 		public static TriggerEvent SubmitUserQuery(string query)
 		{
 			TriggerSystem system = ModContent.GetInstance<TriggerSystem>();
@@ -117,10 +117,10 @@ namespace TerrariaFriend.Triggering
 				snapshot);
 		}
 
-		// 钩子产生的游戏事件也统一进入调度器
+		// 游戏钩子产生的事件也从同一入口发送
 		internal static TriggerEvent SubmitGameEvent(GameEvent gameEvent)
 		{
-			// 钩子事件发生频率低 在这里采集一次当前上下文
+			// 钩子事件较少 发生时直接采集一次当前状态
 			GameSnapshot snapshot = GameStateCollector.Capture();
 			GameEventContext context = GameEventContextCollector.Capture(gameEvent, snapshot);
 			TriggerSystem system = ModContent.GetInstance<TriggerSystem>();
@@ -131,7 +131,7 @@ namespace TerrariaFriend.Triggering
 				snapshot);
 		}
 
-		// 未来 HTTP/WebSocket transport 从此处消费待发送事件
+		// 网络发送模块从这里取出待处理事件
 		public static bool TryDequeue(out TriggerEvent? trigger)
 		{
 			return ModContent.GetInstance<TriggerSystem>()._dispatcher.TryDequeue(out trigger);
@@ -143,7 +143,7 @@ namespace TerrariaFriend.Triggering
 		{
 			string progressionStage = snapshot.Progress.CurrentStage.Id;
 
-			// 只复制 Decision Node 当前需要的轻量字段
+			// 只复制决策需要的少量字段
 			return new PeriodicSummary(
 				snapshot.Scene.Biomes.ToArray(),
 				snapshot.Scene.Layer,

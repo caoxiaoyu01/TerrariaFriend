@@ -70,7 +70,7 @@ CONVERSATION_CONTEXT_FIELDS = {
 
 
 def current_stage_id(snapshot: GameSnapshot) -> str:
-    """读取 C# 进度收集器生成的规范化阶段"""
+    """读取游戏端整理好的当前进度阶段"""
 
     current_stage = _mapping(snapshot.progress, "currentStage")
     stage_id = current_stage.get("id")
@@ -86,8 +86,8 @@ def project_combat_capsule(
     *,
     captured_at: datetime,
 ) -> CombatCapsule:
-    # 玩家死亡事件接收死亡钩子执行后立即采集的快照
-    # 死亡前证据仅限于近期伤害滑动窗口
+    # 死亡快照来自死亡钩子触发后的即时采集
+    # 死亡前发生的事只参考最近几秒的受伤记录
     del context
     player = snapshot.player
     combat = snapshot.combat

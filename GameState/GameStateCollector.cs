@@ -5,10 +5,10 @@ using TerrariaFriend.GameState.Snapshots;
 
 namespace TerrariaFriend.GameState
 {
-	// 统一组装所有子快照，提供给 Python Agent JSON
+	// 汇总各部分游戏状态并发送给智能体服务
 	public static class GameStateCollector
 	{
-		// 75 格约覆盖常见 1080p 可见区域，并为附近实体留少量余量
+		// 75 格大致覆盖常见屏幕范围 并多留一点附近实体空间
 		public const float DefaultSceneRadiusTiles = 75f;
 
 		private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
@@ -16,7 +16,7 @@ namespace TerrariaFriend.GameState
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase
 		};
 
-		// 必须在游戏主线程、玩家进入世界后调用
+		// 只能在玩家进入世界后由游戏主线程调用
 		public static GameSnapshot Capture(float sceneRadiusTiles = DefaultSceneRadiusTiles)
 		{
 			Player player = Main.LocalPlayer;

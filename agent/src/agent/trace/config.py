@@ -47,7 +47,7 @@ def reorder_max_episodes() -> int:
 
 
 def trace_state_path() -> Path:
-    """返回唯一配置的本地一级状态文件"""
+    """返回近期记忆状态文件的位置"""
 
     configured = os.getenv("TERRARIA_TRACE_STATE_PATH")
     if configured:
@@ -56,7 +56,7 @@ def trace_state_path() -> Path:
 
 
 def formation_state_path() -> Path:
-    """返回独立的二级处理检查点路径"""
+    """返回长期记忆处理进度文件的位置"""
 
     configured = os.getenv("TERRARIA_FORMATION_STATE_PATH")
     if configured:

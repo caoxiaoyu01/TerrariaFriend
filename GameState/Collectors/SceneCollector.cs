@@ -6,7 +6,7 @@ namespace TerrariaFriend.GameState.Collectors
 {
 	public static class SceneCollector
 	{
-		// 将 Player.ZoneXXX 和 SceneMetrics 转换成场景信息
+		// 把游戏内部的区域标记转换成场景信息
 		public static SceneSnapshot Capture(Player player)
 		{
 			List<string> biomes = GetBiomes(player);

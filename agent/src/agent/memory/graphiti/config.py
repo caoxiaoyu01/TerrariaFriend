@@ -6,7 +6,7 @@ from agent.llm.config import AgentLLMSettings
 
 @dataclass(frozen=True, slots=True)
 class GraphitiSettings:
-    """不使用硬编码密钥加载 Graphiti 专用基础设施设置"""
+    """从环境变量读取长期记忆服务配置"""
 
     gemini_api_key: str = field(repr=False)
     falkordb_host: str = "127.0.0.1"
@@ -18,7 +18,7 @@ class GraphitiSettings:
 
     @classmethod
     def from_environment(cls) -> "GraphitiSettings":
-        # 智能体模型设置负责项目环境文件的加载约定
+        # 统一沿用模型配置读取环境文件的方式
         AgentLLMSettings.from_environment()
         return cls(
             gemini_api_key=os.environ["GEMINI_API_KEY"],

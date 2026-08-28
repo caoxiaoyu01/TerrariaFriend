@@ -21,7 +21,7 @@ class TraceRuntimeState(CamelModel):
 
 
 class LocalTraceStore:
-    """仅对有限的一级运行时状态进行原子 JSON 持久化"""
+    """把近期记忆状态安全地保存到一个本地文件"""
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -61,7 +61,7 @@ class LocalTraceStore:
                 except PermissionError:
                     if attempt == 2:
                         raise
-                    # 系统扫描程序可能短暂占用先前的结构化数据文件
+                    # 杀毒或索引程序可能会短暂占用旧文件
                     time.sleep(0.01)
         finally:
             if temporary.exists():

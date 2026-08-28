@@ -16,7 +16,7 @@ MAX_EPISODE_ATTEMPTS = 2
 
 
 class MemoryFormationRuntime:
-    """使用持久情节检查点对已关闭轨迹进行非阻塞编排"""
+    """在后台把已关闭的近期记忆整理成长期记忆"""
 
     def __init__(
         self,
