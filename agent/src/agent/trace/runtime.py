@@ -56,23 +56,54 @@ class TraceRuntime:
         if reorder_max_episodes <= 0:
             raise ValueError("reorder_max_episodes 必须大于 0")
         self.store = store
+        self.relatedness_checker = relatedness_checker
         self.formation_runtime = formation_runtime
         self.reorder_window_seconds = reorder_window_seconds
         self.reorder_max_episodes = reorder_max_episodes
-        restored = store.load_state()
-        try:
-            self.manager = TraceManager(
-                relatedness_checker=relatedness_checker,
-                current_trace=restored.current_trace,
-                recent_closed_traces=restored.recent_closed_traces,
-            )
-        except ValueError as exception:
-            logger.warning("[L1Trace] invalid restored state; starting empty: %s", exception)
-            self.manager = TraceManager(relatedness_checker=relatedness_checker)
+        self.manager = TraceManager(relatedness_checker=relatedness_checker)
         self._lock = asyncio.Lock()
         self._pending: list[_PendingEpisode] = []
         self._arrival_sequence = 0
         self._flush_task: asyncio.Task[None] | None = None
+        self._world_id: str | None = None
+        self._session_id: str | None = None
+        self._ended_session_ids: set[str] = set()
+
+    async def activate_context(self, world_id: str, session_id: str) -> bool:
+        async with self._lock:
+            if session_id in self._ended_session_ids:
+                logger.info(
+                    "[L1Trace] ignored ended session world=%s session=%s",
+                    world_id,
+                    session_id,
+                )
+                return False
+            if self._world_id == world_id and self._session_id == session_id:
+                return True
+
+            self._cancel_flush_task_locked()
+            await self._flush_pending_locked()
+            if self.manager.current_trace is not None:
+                previous_closed_ids = self._closed_trace_ids()
+                self.manager.close_current()
+                self._save()
+                self._schedule_newly_closed(previous_closed_ids)
+
+            self.store.activate_scope(world_id)
+            restored = self.store.load_state()
+            self.manager = TraceManager(
+                relatedness_checker=self.relatedness_checker,
+                current_trace=restored.current_trace,
+                recent_closed_traces=restored.recent_closed_traces,
+            )
+            self._world_id = world_id
+            self._session_id = session_id
+            logger.info(
+                "[L1Trace] activated world=%s session=%s",
+                world_id,
+                session_id,
+            )
+            return True
 
     async def record_trigger(
         self,
@@ -81,6 +112,8 @@ class TraceRuntime:
         execution: AgentExecutionResult | None = None,
         response_occurred_at: datetime | None = None,
     ) -> Episode | None:
+        if not await self.activate_context(trigger.world_id, trigger.session_id):
+            return None
         if trigger.trigger_type is TriggerType.PERIODIC:
             return None
         if trigger.trigger_type is TriggerType.USER_QUERY and execution is None:
@@ -116,20 +149,36 @@ class TraceRuntime:
         await asyncio.shield(completion)
         return episode
 
-    async def handle_world_session_ended(self, occurred_at: datetime) -> None:
+    async def handle_world_session_ended(
+        self,
+        occurred_at: datetime,
+        *,
+        world_id: str,
+        session_id: str,
+    ) -> None:
         async with self._lock:
+            self._ended_session_ids.add(session_id)
+            if self._world_id != world_id or self._session_id != session_id:
+                logger.info(
+                    "[L1Trace] ignored stale session end world=%s session=%s",
+                    world_id,
+                    session_id,
+                )
+                return
             self._cancel_flush_task_locked()
             await self._flush_pending_locked()
             previous_closed_ids = self._closed_trace_ids()
             self.manager.handle_world_session_ended(occurred_at)
             self._save()
             self._schedule_newly_closed(previous_closed_ids)
+            self._session_id = None
 
     def resume_closed_traces(self) -> None:
         """重新处理还没有写入长期记忆的已关闭轨迹"""
 
         if self.formation_runtime is None:
             return
+        self.formation_runtime.resume_pending()
         for trace in self.manager.recent_closed_traces:
             self.formation_runtime.schedule(trace)
 

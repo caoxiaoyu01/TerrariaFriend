@@ -13,24 +13,31 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
-    { name = "graphiti-core", extra = ["falkordb", "google-genai"] },
     { name = "langchain-core" },
     { name = "langgraph" },
-    { name = "mcp", extra = ["cli"] },
     { name = "python-dotenv" },
+]
+
+[package.optional-dependencies]
+long-term-memory = [
+    { name = "graphiti-core", extra = ["falkordb", "google-genai"] },
+]
+wiki = [
+    { name = "mcp", extra = ["cli"] },
     { name = "redis" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" },
-    { name = "graphiti-core", extras = ["falkordb", "google-genai"], specifier = ">=0.29.3" },
+    { name = "graphiti-core", extras = ["falkordb", "google-genai"], marker = "extra == 'long-term-memory'", specifier = ">=0.29.3" },
     { name = "langchain-core", specifier = ">=1.6.0" },
     { name = "langgraph", specifier = ">=1.2.11" },
-    { name = "mcp", extras = ["cli"], specifier = ">=2.1.1" },
+    { name = "mcp", extras = ["cli"], marker = "extra == 'wiki'", specifier = ">=2.1.1" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
-    { name = "redis", specifier = ">=8.1.0" },
+    { name = "redis", marker = "extra == 'wiki'", specifier = ">=8.1.0" },
 ]
+provides-extras = ["wiki", "long-term-memory"]
 
 [[package]]
 name = "annotated-doc"

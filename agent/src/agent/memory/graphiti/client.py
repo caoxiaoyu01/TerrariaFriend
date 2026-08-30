@@ -1,5 +1,4 @@
 from graphiti_core import Graphiti
-from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
 from graphiti_core.driver.falkordb_driver import FalkorDriver
 from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
 from graphiti_core.llm_client.config import LLMConfig
@@ -7,6 +6,7 @@ from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 
 from agent.llm.config import AgentLLMSettings
 from agent.memory.graphiti.config import GraphitiSettings
+from agent.memory.graphiti.reranker import ApiRerankerClient
 
 
 def create_graphiti(
@@ -35,8 +35,10 @@ def create_graphiti(
             embedding_dim=graphiti_settings.embedding_dimension,
         )
     )
-    reranker = GeminiRerankerClient(
-        config=LLMConfig(api_key=graphiti_settings.gemini_api_key)
+    reranker = ApiRerankerClient(
+        api_key=graphiti_settings.reranker_api_key,
+        base_url=graphiti_settings.reranker_base_url,
+        model=graphiti_settings.reranker_model,
     )
     driver = FalkorDriver(
         host=graphiti_settings.falkordb_host,

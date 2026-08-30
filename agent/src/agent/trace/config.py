@@ -62,3 +62,12 @@ def formation_state_path() -> Path:
     if configured:
         return Path(configured).expanduser()
     return Path(__file__).resolve().parents[3] / "data" / "l2_formation_state.json"
+
+
+def formation_outbox_path() -> Path:
+    """返回长期记忆待写队列的位置"""
+
+    configured = os.getenv("TERRARIA_FORMATION_OUTBOX_PATH")
+    if configured:
+        return Path(configured).expanduser()
+    return Path(__file__).resolve().parents[3] / "data" / "l2_formation_outbox"

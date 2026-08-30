@@ -1,5 +1,6 @@
 import logging
 import time
+from collections.abc import Callable
 from typing import Any, Literal, Protocol
 
 from pydantic import Field, field_validator
@@ -15,6 +16,13 @@ RECENT_MEMORY_TOP_K = 3
 RECENT_MEMORY_MIN_SCORE = 0.5
 LONG_TERM_MEMORY_TOP_K = 10
 MEMORY_TOOL_DESCRIPTION = "查询玩家历史记忆"
+
+
+def world_memory_group_id(world_id: str) -> str:
+    normalized = world_id.strip()
+    if not normalized:
+        raise ValueError("world_id 不能为空")
+    return f"world_{normalized}"
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -103,6 +111,7 @@ class RecentMemoryRetriever:
         *,
         top_k: int = RECENT_MEMORY_TOP_K,
         min_score: float = RECENT_MEMORY_MIN_SCORE,
+        world_id_provider: Callable[[], str] | None = None,
     ) -> None:
         if top_k <= 0:
             raise ValueError("top_k 必须大于 0")
@@ -114,6 +123,7 @@ class RecentMemoryRetriever:
         self.model_client = model_client
         self.top_k = top_k
         self.min_score = min_score
+        self.world_id_provider = world_id_provider
 
     async def retrieve(self, query: str) -> list[RecentMemoryMatch]:
         candidates = self._load_candidates()
@@ -180,7 +190,11 @@ class RecentMemoryRetriever:
         return matches
 
     def _load_candidates(self) -> list[RecentMemoryEpisode]:
-        state = self.store.load_state()
+        state = (
+            self.store.load_scope_state(self.world_id_provider())
+            if self.world_id_provider is not None
+            else self.store.load_state()
+        )
         traces = [*state.recent_closed_traces]
         if state.current_trace is not None:
             traces.append(state.current_trace)
@@ -196,17 +210,21 @@ class LongTermMemoryRetriever:
         self,
         backend: SemanticMemoryBackend,
         *,
-        group_id: str,
+        group_id: str | None = None,
+        group_id_provider: Callable[[], str] | None = None,
         top_k: int = LONG_TERM_MEMORY_TOP_K,
     ) -> None:
+        if (group_id is None) == (group_id_provider is None):
+            raise ValueError("group_id 和 group_id_provider 必须且只能提供一个")
         self.backend = backend
         self.group_id = group_id
+        self.group_id_provider = group_id_provider
         self.top_k = top_k
 
     async def retrieve(self, query: str) -> list[LongTermMemoryMatch]:
         results = await self.backend.search(
             query,
-            group_ids=[self.group_id],
+            group_ids=[self._group_id()],
             num_results=self.top_k,
         )
         matches = [
@@ -227,12 +245,19 @@ class LongTermMemoryRetriever:
             )
         return matches
 
+    def _group_id(self) -> str:
+        if self.group_id_provider is not None:
+            return self.group_id_provider()
+        if self.group_id is None:
+            raise RuntimeError("长期记忆缺少世界分组")
+        return self.group_id
+
 
 class MemoryContextTool:
     def __init__(
         self,
         recent: RecentMemoryRetriever,
-        long_term: LongTermMemoryRetriever,
+        long_term: LongTermMemoryRetriever | None = None,
     ) -> None:
         self.recent = recent
         self.long_term = long_term
@@ -257,11 +282,19 @@ class MemoryContextTool:
             )
         elif scope == "long_term":
             result = MemoryContextResult(
-                long_term_memory=await self.long_term.retrieve(normalized_query)
+                long_term_memory=(
+                    await self.long_term.retrieve(normalized_query)
+                    if self.long_term is not None
+                    else []
+                )
             )
         else:
             recent_memory = await self.recent.retrieve(normalized_query)
-            long_term_memory = await self.long_term.retrieve(normalized_query)
+            long_term_memory = (
+                await self.long_term.retrieve(normalized_query)
+                if self.long_term is not None
+                else []
+            )
             result = MemoryContextResult(
                 recent_memory=recent_memory,
                 long_term_memory=long_term_memory,

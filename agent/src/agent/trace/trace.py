@@ -18,6 +18,7 @@ class TraceStatus(str, Enum):
 
 class Trace(CamelModel):
     id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
+    world_id: str = Field(min_length=1)
     started_at: datetime
     ended_at: datetime | None = None
     status: TraceStatus = TraceStatus.OPEN
@@ -36,6 +37,8 @@ class Trace(CamelModel):
     def validate_state(self) -> "Trace":
         if self.started_at != self.episodes[0].started_at:
             raise ValueError("started_at 必须来自首个 Episode")
+        if any(episode.world_id != self.world_id for episode in self.episodes):
+            raise ValueError("Trace 只能包含同一世界的 Episode")
         if any(
             right.started_at < left.ended_at
             for left, right in zip(self.episodes, self.episodes[1:])
@@ -66,13 +69,19 @@ class Trace(CamelModel):
 
     @classmethod
     def start(cls, episode: Episode) -> "Trace":
-        return cls(started_at=episode.started_at, episodes=[episode])
+        return cls(
+            world_id=episode.world_id,
+            started_at=episode.started_at,
+            episodes=[episode],
+        )
 
     def append_episode(self, episode: Episode) -> None:
         if self.status is TraceStatus.CLOSED:
             raise ValueError("CLOSED Trace 不允许 append")
         if episode.started_at < self.episodes[-1].ended_at:
             raise ValueError("Episode 不能早于当前 Trace 的最后时间")
+        if episode.world_id != self.world_id:
+            raise ValueError("不能把其他世界的 Episode 加入当前 Trace")
         self.episodes.append(episode)
 
     def close(self, *, ended_at: datetime | None = None) -> None:

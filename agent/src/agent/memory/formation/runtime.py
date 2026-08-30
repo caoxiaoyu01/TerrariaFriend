@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 
 from agent.memory.formation.extractor import MemoryExtractor
 from agent.memory.formation.schema import MemoryExtractionInput
-from agent.memory.formation.store import FormationCheckpointStore
+from agent.memory.formation.store import FormationCheckpointStore, FormationOutboxStore
 from agent.memory.graphiti.writer import GraphitiMemoryWriter, MemoryIngestionContext
 from agent.memory.ports import MemoryEvidenceEpisode
 from agent.trace.episode import Episode
@@ -23,14 +23,24 @@ class MemoryFormationRuntime:
         extractor: MemoryExtractor,
         writer: GraphitiMemoryWriter,
         checkpoint_store: FormationCheckpointStore,
+        outbox_store: FormationOutboxStore | None = None,
         *,
-        group_id: str,
+        group_id: str | None = None,
+        group_id_factory: Callable[[str], str] | None = None,
         initialize_backend: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
+        if (group_id is None) == (group_id_factory is None):
+            raise ValueError("group_id 和 group_id_factory 必须且只能提供一个")
         self.extractor = extractor
         self.writer = writer
         self.checkpoint_store = checkpoint_store
+        self.outbox_store = outbox_store or FormationOutboxStore(
+            checkpoint_store.path.with_name(
+                f"{checkpoint_store.path.stem}_outbox"
+            )
+        )
         self.group_id = group_id
+        self.group_id_factory = group_id_factory
         self.initialize_backend = initialize_backend
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
@@ -41,7 +51,11 @@ class MemoryFormationRuntime:
         if trace.status is not TraceStatus.CLOSED:
             return
         state = self.checkpoint_store.load_state()
-        if trace.id in state.processed_trace_ids or trace.id in self._tasks:
+        if state.is_trace_completed(trace):
+            self.outbox_store.acknowledge(trace.id)
+            return
+        self.outbox_store.enqueue(trace)
+        if trace.id in self._tasks:
             return
         task = asyncio.create_task(
             self.process_trace(trace.model_copy(deep=True)),
@@ -55,15 +69,23 @@ class MemoryFormationRuntime:
             return
         async with self._locks.setdefault(trace.id, asyncio.Lock()):
             state = self.checkpoint_store.load_state()
-            if trace.id in state.processed_trace_ids:
+            if state.is_trace_completed(trace):
+                self.outbox_store.acknowledge(trace.id)
                 return
             episode_by_id = {episode.id: episode for episode in trace.episodes}
             for episode in trace.episodes:
                 state = self.checkpoint_store.load_state()
-                if state.is_episode_terminal(trace.id, episode.id):
+                if state.is_episode_completed(trace.id, episode.id):
                     continue
                 await self._process_episode(trace, episode, episode_by_id)
-            self.checkpoint_store.mark_trace_processed(trace.id, trace.episodes)
+            state = self.checkpoint_store.load_state()
+            if state.is_trace_completed(trace):
+                self.checkpoint_store.mark_trace_processed(trace.id, trace.episodes)
+                self.outbox_store.acknowledge(trace.id)
+
+    def resume_pending(self) -> None:
+        for trace in self.outbox_store.load_pending():
+            self.schedule(trace)
 
     async def _process_episode(
         self,
@@ -121,13 +143,14 @@ class MemoryFormationRuntime:
             for candidate in result.relations
             for evidence_id in candidate.evidence_episode_ids
         }
+        group_id = self._group_id(trace.world_id)
         context = MemoryIngestionContext(
-            group_id=self.group_id,
+            group_id=group_id,
             evidence_episodes=[
                 MemoryEvidenceEpisode(
                     episode_id=evidence_id,
                     occurred_at=episode_by_id[evidence_id].started_at,
-                    group_id=self.group_id,
+                    group_id=group_id,
                 )
                 for evidence_id in evidence_ids
             ],
@@ -150,6 +173,13 @@ class MemoryFormationRuntime:
                     episode.id,
                 )
         self.checkpoint_store.mark_episode_failed(trace.id, episode.id, str(last_error))
+
+    def _group_id(self, world_id: str) -> str:
+        if self.group_id_factory is not None:
+            return self.group_id_factory(world_id)
+        if self.group_id is None:
+            raise RuntimeError("长期记忆缺少世界分组")
+        return self.group_id
 
     async def _ensure_backend(self) -> None:
         if self._backend_initialized:

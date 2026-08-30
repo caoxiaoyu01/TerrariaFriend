@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -13,17 +14,14 @@ from agent.decision.node import DecisionNode, DecisionNodeError
 from agent.decision.schema import DecisionAction, DecisionInput, DecisionResult
 from agent.llm.client import OpenAICompatibleClient, RoleLLMClient
 from agent.llm.config import AgentLLMSettings
-from agent.mcp_clients import create_terraria_wiki_mcp_client
 from agent.memory.formation import MemoryExtractor
 from agent.memory.formation.runtime import MemoryFormationRuntime
-from agent.memory.formation.store import FormationCheckpointStore
-from agent.memory.graphiti import GraphitiMemoryWriter
-from agent.memory.graphiti.backend import GraphitiMemoryBackend
-from agent.memory.graphiti.config import GraphitiSettings
+from agent.memory.formation.store import FormationCheckpointStore, FormationOutboxStore
 from agent.memory.retrieval import (
     LongTermMemoryRetriever,
     MemoryContextTool,
     RecentMemoryRetriever,
+    world_memory_group_id,
 )
 from agent.models.execution import AgentExecutionResult
 from agent.models.trigger import (
@@ -38,10 +36,11 @@ from agent.reasoning.reasoner import Reasoner
 from agent.reasoning.tool_policy import ToolPolicy
 from agent.reasoning.tools import GameContextTools, ToolExecutor
 from agent.response.generator import ResponseGenerator, ResponseGeneratorError
-from agent.trace.config import formation_state_path, trace_state_path
+from agent.trace.config import formation_outbox_path, formation_state_path, trace_state_path
 from agent.trace.relevance import is_related_to_close_context
 from agent.trace.runtime import TraceRuntime
 from agent.trace.store import LocalTraceStore
+from agent.world_context import current_world_id, require_current_world_id
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -51,24 +50,61 @@ HP_DROP_REASON_THRESHOLD = -0.10
 llm_settings = AgentLLMSettings.from_environment()
 llm_client = OpenAICompatibleClient(llm_settings.provider)
 decision_node = DecisionNode(RoleLLMClient(llm_client, llm_settings.decision))
-wiki_mcp_client = create_terraria_wiki_mcp_client(
-    llm_settings.wiki_mcp_enabled
-)
 response_role_client = RoleLLMClient(llm_client, llm_settings.response)
 reasoning_role_client = RoleLLMClient(llm_client, llm_settings.reasoning)
-graphiti_settings = GraphitiSettings.from_environment()
-graphiti_backend = GraphitiMemoryBackend()
+wiki_mcp_client = None
+if llm_settings.wiki_mcp_enabled:
+    try:
+        from agent.mcp_clients import create_terraria_wiki_mcp_client
+
+        wiki_mcp_client = create_terraria_wiki_mcp_client(True)
+    except Exception as exception:
+        logger.warning("[WikiMCP] status=disabled error=%s", exception)
+
+long_term_memory_enabled = (
+    os.getenv("LONG_TERM_MEMORY_ENABLED", "false").lower() == "true"
+)
+graphiti_backend = None
+memory_formation_runtime = None
+long_term_retriever = None
+if long_term_memory_enabled:
+    try:
+        from agent.memory.graphiti import GraphitiMemoryWriter
+        from agent.memory.graphiti.backend import GraphitiMemoryBackend
+
+        graphiti_backend = GraphitiMemoryBackend()
+        long_term_retriever = LongTermMemoryRetriever(
+            graphiti_backend,
+            group_id_provider=lambda: world_memory_group_id(
+                require_current_world_id()
+            ),
+        )
+        memory_formation_runtime = MemoryFormationRuntime(
+            MemoryExtractor(reasoning_role_client),
+            GraphitiMemoryWriter(graphiti_backend),
+            FormationCheckpointStore(formation_state_path()),
+            FormationOutboxStore(formation_outbox_path()),
+            group_id_factory=world_memory_group_id,
+            initialize_backend=graphiti_backend.initialize,
+        )
+    except Exception as exception:
+        long_term_memory_enabled = False
+        graphiti_backend = None
+        memory_formation_runtime = None
+        long_term_retriever = None
+        logger.warning("[LongTermMemory] status=disabled error=%s", exception)
 trace_store = LocalTraceStore(trace_state_path())
 memory_context_tool = MemoryContextTool(
-    RecentMemoryRetriever(trace_store, response_role_client),
-    LongTermMemoryRetriever(
-        graphiti_backend,
-        group_id=graphiti_settings.falkordb_database,
+    RecentMemoryRetriever(
+        trace_store,
+        response_role_client,
+        world_id_provider=require_current_world_id,
     ),
+    long_term_retriever,
 )
 tool_executor = ToolExecutor(
     GameContextTools(),
-    ToolPolicy(wiki_mcp_enabled=llm_settings.wiki_mcp_enabled),
+    ToolPolicy(wiki_mcp_enabled=wiki_mcp_client is not None),
     wiki_client=wiki_mcp_client,
     memory_tool=memory_context_tool,
 )
@@ -86,13 +122,6 @@ reasoning_graph = ReasoningGraph(
     tool_executor=tool_executor,
 )
 periodic_gate = PeriodicGate()
-memory_formation_runtime = MemoryFormationRuntime(
-    MemoryExtractor(reasoning_role_client),
-    GraphitiMemoryWriter(graphiti_backend),
-    FormationCheckpointStore(formation_state_path()),
-    group_id=graphiti_settings.falkordb_database,
-    initialize_backend=graphiti_backend.initialize,
-)
 
 
 async def _check_trace_relatedness(close_context, user_query):
@@ -130,7 +159,11 @@ async def lifespan(_: FastAPI):
             await trace_runtime.shutdown()
         finally:
             try:
-                if memory_formation_runtime.backend_initialized:
+                if (
+                    memory_formation_runtime is not None
+                    and graphiti_backend is not None
+                    and memory_formation_runtime.backend_initialized
+                ):
                     await graphiti_backend.close()
             finally:
                 try:
@@ -245,6 +278,15 @@ async def handle_trigger(
     runtime: Annotated[TraceRuntime, Depends(get_trace_runtime)],
 ) -> AgentResponse:
     """接收游戏触发并按决策结果执行对应流程"""
+    current_world_id.set(trigger.world_id)
+    if not await runtime.activate_context(trigger.world_id, trigger.session_id):
+        return AgentResponse(
+            action=DecisionAction.IGNORE.value,
+            message=None,
+            decision_reason="Session 已结束",
+            success=True,
+            error=None,
+        )
     if trigger.trigger_type is TriggerType.PERIODIC:
         allowed, reason = gate.should_allow(
             hp_drop=trigger.vitals.hp_delta <= HP_DROP_REASON_THRESHOLD
@@ -336,4 +378,8 @@ async def handle_world_session_ended(
 ) -> None:
     """离开世界时立即保存当前记忆 不经过普通事件队列"""
 
-    await runtime.handle_world_session_ended(request.occurred_at)
+    await runtime.handle_world_session_ended(
+        request.occurred_at,
+        world_id=request.world_id,
+        session_id=request.session_id,
+    )

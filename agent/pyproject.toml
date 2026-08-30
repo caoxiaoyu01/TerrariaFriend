@@ -9,12 +9,18 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.141.1",
-    "graphiti-core[falkordb,google-genai]>=0.29.3",
     "langchain-core>=1.6.0",
     "langgraph>=1.2.11",
-    "mcp[cli]>=2.1.1",
     "python-dotenv>=1.2.3",
+]
+
+[project.optional-dependencies]
+wiki = [
+    "mcp[cli]>=2.1.1",
     "redis>=8.1.0",
+]
+long-term-memory = [
+    "graphiti-core[falkordb,google-genai]>=0.29.3",
 ]
 
 [project.scripts]

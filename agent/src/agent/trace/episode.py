@@ -18,6 +18,8 @@ class EpisodeType(str, Enum):
 
 class Episode(CamelModel):
     id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
+    world_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
     episode_type: EpisodeType
     started_at: datetime
     ended_at: datetime
@@ -45,6 +47,8 @@ class Episode(CamelModel):
 def build_episode(
     events: list[TraceEvent],
     *,
+    world_id: str,
+    session_id: str,
     episode_id: str | None = None,
 ) -> Episode:
     """把同一次事件和回复组成一个完整情节"""
@@ -81,6 +85,8 @@ def build_episode(
         raise ValueError("P0 Episode 只允许一个 trigger 和可选的一个 response")
 
     values = {
+        "world_id": world_id,
+        "session_id": session_id,
         "episode_type": episode_type,
         "started_at": events[0].occurred_at,
         "ended_at": events[-1].occurred_at,
@@ -120,4 +126,8 @@ def build_trigger_episode(
         if response_event is None:
             return None
         events.append(response_event)
-    return build_episode(events)
+    return build_episode(
+        events,
+        world_id=trigger.world_id,
+        session_id=trigger.session_id,
+    )

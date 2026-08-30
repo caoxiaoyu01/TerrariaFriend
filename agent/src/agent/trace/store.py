@@ -1,4 +1,5 @@
 import json
+import hashlib
 import logging
 import os
 import time
@@ -24,13 +25,34 @@ class LocalTraceStore:
     """把近期记忆状态安全地保存到一个本地文件"""
 
     def __init__(self, path: Path) -> None:
+        self._base_path = path
         self.path = path
+        self.active_scope_id: str | None = None
+
+    def activate_scope(self, world_id: str) -> None:
+        self.active_scope_id = world_id.strip()
+        self.path = self.path_for_scope(world_id)
+
+    def path_for_scope(self, world_id: str) -> Path:
+        normalized = world_id.strip()
+        if not normalized:
+            raise ValueError("world_id 不能为空")
+        suffix = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+        return self._base_path.with_name(
+            f"{self._base_path.stem}.{suffix}{self._base_path.suffix}"
+        )
 
     def load_state(self) -> TraceRuntimeState:
-        if not self.path.exists():
+        return self._load_path(self.path)
+
+    def load_scope_state(self, world_id: str) -> TraceRuntimeState:
+        return self._load_path(self.path_for_scope(world_id))
+
+    def _load_path(self, path: Path) -> TraceRuntimeState:
+        if not path.exists():
             return TraceRuntimeState()
         try:
-            raw = self.path.read_text(encoding="utf-8")
+            raw = path.read_text(encoding="utf-8")
             if not raw.strip():
                 raise ValueError("state file is empty")
             state = TraceRuntimeState.model_validate_json(raw)
@@ -41,7 +63,7 @@ class LocalTraceStore:
         except (OSError, ValueError, ValidationError, json.JSONDecodeError) as exception:
             logger.warning(
                 "[L1Trace] failed to restore %s; starting empty: %s",
-                self.path,
+                path,
                 exception,
             )
             return TraceRuntimeState()

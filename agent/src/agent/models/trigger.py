@@ -103,6 +103,8 @@ class VitalsContext(CamelModel):
 class TriggerRequest(CamelModel):
     trigger_type: TriggerType
     timestamp: datetime
+    world_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
     priority: TriggerPriority
     vitals: VitalsContext
     game_event: GameEventRequest | None = None
@@ -123,3 +125,5 @@ class AgentResponse(CamelModel):
 
 class WorldSessionEndedRequest(CamelModel):
     occurred_at: datetime
+    world_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
