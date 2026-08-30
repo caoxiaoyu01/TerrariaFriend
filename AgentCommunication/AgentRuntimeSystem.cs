@@ -19,7 +19,6 @@ namespace TerrariaFriend.AgentCommunication
 		// 用户问题和游戏事件分开排队 方便保证处理顺序
 		private readonly Queue<TriggerEvent> _pendingUserQueries = new Queue<TriggerEvent>();
 		private readonly Queue<TriggerEvent> _pendingGameEvents = new Queue<TriggerEvent>();
-		private readonly HashSet<GameEvent> _pendingGameEventKeys = new HashSet<GameEvent>();
 
 		// 后台线程只存放结果 界面由游戏主线程更新
 		private readonly ConcurrentQueue<(TriggerType TriggerType, string SessionId, AgentResponse Response)> _completedResponses = new();
@@ -110,34 +109,57 @@ namespace TerrariaFriend.AgentCommunication
 				{
 					case TriggerType.USER_QUERY:
 						_pendingUserQueries.Enqueue(trigger);
-						Mod.Logger.Info("[AgentRuntime] queued USER_QUERY");
+						LogQueue("enqueued", trigger, DateTimeOffset.UtcNow);
 						break;
 					case TriggerType.GAME_EVENT:
 						EnqueueGameEvent(trigger);
 						break;
 					case TriggerType.PERIODIC:
-						periodic ??= trigger;
+						if (periodic != null)
+						{
+							LogQueue("dropped_periodic_busy", trigger, DateTimeOffset.UtcNow);
+						}
+						else
+						{
+							periodic = trigger;
+						}
 						break;
 				}
 			}
 
-			if (periodic != null &&
-				(_activeRequest != null || _pendingUserQueries.Count > 0 || _pendingGameEvents.Count > 0))
+			if (periodic != null && TriggerQueuePolicy.ShouldDropPeriodic(
+				_activeRequest != null || _pendingUserQueries.Count > 0 || _pendingGameEvents.Count > 0))
 			{
-				Mod.Logger.Debug("Dropped PERIODIC trigger because Agent runtime is busy.");
+				LogQueue("dropped_periodic_busy", periodic, DateTimeOffset.UtcNow);
 				return null;
 			}
+			if (periodic != null) LogQueue("enqueued", periodic, DateTimeOffset.UtcNow);
 
 			return periodic;
 		}
 
 		private void EnqueueGameEvent(TriggerEvent trigger)
 		{
-			// 只合并仍在排队且内容完全相同的事件
-			if (trigger.GameEvent == null || _pendingGameEventKeys.Add(trigger.GameEvent))
+			GameEvent? gameEvent = trigger.GameEvent;
+			if (gameEvent != null && TriggerQueuePolicy.IsLatestWins(gameEvent.EventType))
 			{
-				_pendingGameEvents.Enqueue(trigger);
+				int pendingCount = _pendingGameEvents.Count;
+				for (int index = 0; index < pendingCount; index++)
+				{
+					TriggerEvent queued = _pendingGameEvents.Dequeue();
+					if (queued.GameEvent != null && TriggerQueuePolicy.ShouldReplace(
+						queued.GameEvent.EventType,
+						gameEvent.EventType))
+					{
+						LogQueue("replaced_by_newer", queued, DateTimeOffset.UtcNow);
+						continue;
+					}
+					_pendingGameEvents.Enqueue(queued);
+				}
 			}
+
+			_pendingGameEvents.Enqueue(trigger);
+			LogQueue("enqueued", trigger, DateTimeOffset.UtcNow);
 		}
 
 		private TriggerEvent? TakeNextPending()
@@ -148,11 +170,35 @@ namespace TerrariaFriend.AgentCommunication
 				return _pendingUserQueries.Dequeue();
 			}
 
-			if (_pendingGameEvents.Count == 0) return null;
+			while (_pendingGameEvents.Count > 0)
+			{
+				TriggerEvent trigger = _pendingGameEvents.Dequeue();
+				DateTimeOffset now = DateTimeOffset.UtcNow;
+				if (trigger.GameEvent != null &&
+					TriggerQueuePolicy.IsProtected(trigger.GameEvent.EventType) &&
+					now - trigger.Timestamp > AgentConfiguration.GameEventTtl)
+				{
+					LogQueue("protected_event_kept", trigger, now);
+				}
+				if (TriggerQueuePolicy.IsExpired(trigger, now, AgentConfiguration.GameEventTtl))
+				{
+					LogQueue("dropped_expired", trigger, now);
+					continue;
+				}
+				return trigger;
+			}
 
-			TriggerEvent trigger = _pendingGameEvents.Dequeue();
-			if (trigger.GameEvent != null) _pendingGameEventKeys.Remove(trigger.GameEvent);
-			return trigger;
+			return null;
+		}
+
+		private void LogQueue(string action, TriggerEvent trigger, DateTimeOffset now)
+		{
+			string eventType = trigger.GameEvent?.EventType.ToString() ?? "none";
+			double age = TriggerQueuePolicy.AgeSeconds(trigger, now);
+			int queueSize = _pendingUserQueries.Count + _pendingGameEvents.Count;
+			Mod.Logger.Info(
+				$"[TriggerQueue] action={action} trigger={trigger.TriggerType} " +
+				$"event={eventType} age={age:F1}s size={queueSize}");
 		}
 
 		private async Task SendAndCaptureAsync(
@@ -212,7 +258,6 @@ namespace TerrariaFriend.AgentCommunication
 			// 切换世界后丢弃旧世界尚未处理的事件
 			_pendingUserQueries.Clear();
 			_pendingGameEvents.Clear();
-			_pendingGameEventKeys.Clear();
 		}
 
 		private void CancelActiveRequest()

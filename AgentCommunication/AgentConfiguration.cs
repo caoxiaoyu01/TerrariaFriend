@@ -11,5 +11,6 @@ namespace TerrariaFriend.AgentCommunication
 		// 一次推理最多调用模型四轮
 		public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(120);
 		public static readonly TimeSpan BoundarySignalTimeout = TimeSpan.FromSeconds(5);
+		public static readonly TimeSpan GameEventTtl = TimeSpan.FromSeconds(60);
 	}
 }

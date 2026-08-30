@@ -192,6 +192,7 @@ TerrariaFriend/
 - [x] Terraria Wiki MCP
 - [x] Recent Memory（Episode / Trace）与 Long-term Memory（Graphiti / FalkorDB）Retrieval
 - [x] Trace 持久化、恢复与异步 Episode 重排
+- [x] 实时 Trigger 队列管理与关键事件保护
 - [x] 游戏内聊天入口与 Agent 回复展示
 
 当前仍在继续优化真实游戏中的事件边界、Memory Retrieval 精度、响应延迟和整体交互体验。

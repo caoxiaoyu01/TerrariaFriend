@@ -10,7 +10,8 @@
 
 	<!-- References -->
 	<ItemGroup>
-		
+		<Compile Remove="agent\tests\**\*.cs" />
+		<Compile Remove="Checks\**\*.cs" />
 	</ItemGroup>
 
 </Project>
