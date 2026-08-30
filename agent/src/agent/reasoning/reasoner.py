@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from agent.decision.schema import DecisionAction
 from agent.llm.client import (
     RoleLLMClient,
     log_model_completion,
@@ -11,7 +12,7 @@ from agent.llm.client import (
 from agent.reasoning.prompt import REASONING_SYSTEM_PROMPT
 from agent.reasoning.schema import ReasonerResult
 from agent.reasoning.state import ReasoningState
-from agent.reasoning.tools import TOOL_DESCRIPTIONS
+from agent.reasoning.tools import ToolExecutor
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -29,11 +30,9 @@ class Reasoner:
         available_tools: dict[str, object] | None = None,
     ) -> None:
         self._model_client = model_client
-        self._available_tools = available_tools or {
-            name: {"description": description, "args": {}}
-            for name, description in TOOL_DESCRIPTIONS.items()
-            if name != "lookup_terraria_knowledge"
-        }
+        self._available_tools = available_tools or ToolExecutor().available_tool_specs(
+            DecisionAction.REASON
+        )
 
     async def decide(
         self,

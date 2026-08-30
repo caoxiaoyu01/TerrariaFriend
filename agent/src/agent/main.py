@@ -33,8 +33,7 @@ from agent.models.trigger import (
 from agent.periodic_gate import PeriodicGate
 from agent.reasoning.graph import ReasoningGraph, ReasoningGraphError
 from agent.reasoning.reasoner import Reasoner
-from agent.reasoning.tool_policy import ToolPolicy
-from agent.reasoning.tools import GameContextTools, ToolExecutor
+from agent.reasoning.tools import ToolExecutor
 from agent.response.generator import ResponseGenerator, ResponseGeneratorError
 from agent.trace.config import formation_outbox_path, formation_state_path, trace_state_path
 from agent.trace.relevance import is_related_to_close_context
@@ -103,8 +102,6 @@ memory_context_tool = MemoryContextTool(
     long_term_retriever,
 )
 tool_executor = ToolExecutor(
-    GameContextTools(),
-    ToolPolicy(wiki_mcp_enabled=wiki_mcp_client is not None),
     wiki_client=wiki_mcp_client,
     memory_tool=memory_context_tool,
 )

@@ -20,7 +20,7 @@ from agent.reasoning.schema import (
     ReasonerStatus,
 )
 from agent.reasoning.state import ReasoningRunMetrics, ReasoningState
-from agent.reasoning.tools import GameContextTools, ToolExecutor, tool_signature
+from agent.reasoning.tools import ToolExecutor, tool_signature
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -39,14 +39,11 @@ class ReasoningGraph:
         reasoner: Reasoner,
         *,
         context_builder: ContextBuilder | None = None,
-        tools: GameContextTools | None = None,
         tool_executor: ToolExecutor | None = None,
     ) -> None:
         self._reasoner = reasoner
         self._context_builder = context_builder or ContextBuilder()
-        if tools is not None and tool_executor is not None:
-            raise ValueError("tools 与 tool_executor 不能同时提供")
-        self._tool_executor = tool_executor or ToolExecutor(tools)
+        self._tool_executor = tool_executor or ToolExecutor()
 
         builder = StateGraph(ReasoningState)
         builder.add_node("reasoner", self._reasoner_node)
@@ -132,6 +129,11 @@ class ReasoningGraph:
         answer = final_state.get("final_answer")
         if not answer:
             raise ReasoningGraphError("Reasoning Graph 未生成最终回复")
+        if _precise_wiki_lookup_failed(
+            final_state["tool_history"],
+            final_state["collected_context"],
+        ):
+            answer = "Terraria Wiki 暂时不可用，无法验证这项具体信息，我现在不能可靠地给出具体结果"
 
         total_latency_seconds = time.perf_counter() - started_at
         logger.info(
@@ -188,7 +190,7 @@ class ReasoningGraph:
                 answer="根据当前能够获取的信息还无法完全确定，建议先确保安全并结合现有进度和装备谨慎行动。",
             )
 
-        tools = [call.name.value for call in result.tool_calls]
+        tools = [call.name for call in result.tool_calls]
         logger.info(
             "[Reasoner]\nround=%d\nstatus=%s\ntools=%s%s",
             round_number,
@@ -226,19 +228,20 @@ class ReasoningGraph:
         for raw_call in state["pending_tool_calls"]:
             call = TOOL_CALL_ADAPTER.validate_python(raw_call)
             arguments = call.arguments_dict()
-            signature = tool_signature(call.name.value, arguments)
+            signature = tool_signature(call.name, arguments)
             previous = next(
                 (
                     entry
                     for entry in tool_history
                     if entry.get("signature") == signature
+                    and entry.get("status") == "success"
                 ),
                 None,
             )
             if previous is not None:
                 tool_history.append(
                     {
-                        "name": call.name.value,
+                        "name": call.name,
                         "arguments": arguments,
                         "signature": signature,
                         "status": "reused",
@@ -246,7 +249,7 @@ class ReasoningGraph:
                         "round": state["reasoning_round"],
                     }
                 )
-                logger.info("[Tool] name=%s reused=true", call.name.value)
+                logger.info("[Tool] name=%s reused=true", call.name)
                 run_metrics.tool_history = tool_history
                 continue
 
@@ -256,17 +259,17 @@ class ReasoningGraph:
             started_at = time.perf_counter()
             tool_call_count += 1
             try:
-                context_key, result = await self._tool_executor.execute_async(
+                result = await self._tool_executor.execute_into_context(
                     DecisionAction.REASON,
                     call.name,
                     arguments,
                     state["game_snapshot"],
+                    collected_context,
                 )
-                collected_context[context_key] = result
                 latency_seconds = time.perf_counter() - started_at
                 tool_history.append(
                     {
-                        "name": call.name.value,
+                        "name": call.name,
                         "arguments": arguments,
                         "signature": signature,
                         "status": "success",
@@ -278,16 +281,16 @@ class ReasoningGraph:
                 )
                 logger.info(
                     "[Tool]\nname=%s\nlatency=%.3fs\nresult_summary=%s",
-                    call.name.value,
+                    call.name,
                     latency_seconds,
-                    _tool_result_summary(call.name.value, result),
+                    _tool_result_summary(call.name, result),
                 )
                 run_metrics.tool_history = tool_history
             except Exception as exception:
                 latency_seconds = time.perf_counter() - started_at
                 collected_context.setdefault("tool_errors", []).append(
                     {
-                        "tool": call.name.value,
+                        "tool": call.name,
                         "error": str(exception),
                         "round": state["reasoning_round"],
                         "latency_ms": latency_seconds * 1000,
@@ -296,7 +299,7 @@ class ReasoningGraph:
                 )
                 tool_history.append(
                     {
-                        "name": call.name.value,
+                        "name": call.name,
                         "arguments": arguments,
                         "signature": signature,
                         "status": "error",
@@ -309,7 +312,7 @@ class ReasoningGraph:
                 )
                 logger.warning(
                     "[Tool] name=%s success=false latency=%.3fs error=%s round=%d",
-                    call.name.value,
+                    call.name,
                     latency_seconds,
                     exception,
                     state["reasoning_round"],
@@ -373,6 +376,40 @@ def _wiki_metrics(
         if isinstance(entry.get("cache_hit"), bool)
     ]
     return True, latency_ms, cache_values[-1] if cache_values else None
+
+
+def _precise_wiki_lookup_failed(
+    tool_history: list[dict[str, Any]],
+    collected_context: dict[str, Any],
+) -> bool:
+    wiki_entries = [
+        entry
+        for entry in tool_history
+        if entry.get("name") == "lookup_terraria_knowledge"
+        and entry.get("status") != "reused"
+    ]
+    precise_intents = {
+        "obtaining",
+        "usage",
+        "crafting",
+        "summoning",
+        "location",
+        "drops",
+        "mechanics",
+    }
+    precise_entries = [
+        entry
+        for entry in wiki_entries
+        if entry.get("arguments", {}).get("intent") in precise_intents
+    ]
+    if not precise_entries:
+        return False
+    wiki_context = collected_context.get("terraria_wiki")
+    return not (
+        any(entry.get("status") == "success" for entry in precise_entries)
+        and isinstance(wiki_context, dict)
+        and bool(wiki_context.get("evidence"))
+    )
 
 
 def _log_ab_metrics(

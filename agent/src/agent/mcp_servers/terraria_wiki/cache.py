@@ -5,6 +5,8 @@ import unicodedata
 from typing import Any
 
 import redis.asyncio as redis
+from redis.backoff import NoBackoff
+from redis.retry import Retry
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,14 @@ def normalize_cache_component(value: str) -> str:
 
 class WikiCache:
     def __init__(self, client: Any | None = None) -> None:
-        self._client = client or redis.from_url(REDIS_URL, decode_responses=True)
+        self._client = client or redis.from_url(
+            REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=0.25,
+            socket_timeout=0.25,
+            retry=Retry(NoBackoff(), 0),
+        )
+        self._available = True
 
     @staticmethod
     def resolve_key(lang: str, entity: str) -> str:
@@ -62,9 +71,12 @@ class WikiCache:
         )
 
     async def _get_json(self, key: str) -> dict[str, Any] | None:
+        if not self._available:
+            return None
         try:
             value = await self._client.get(key)
         except Exception as exception:
+            self._available = False
             self._log_unavailable(exception)
             return None
         if value is None:
@@ -77,6 +89,8 @@ class WikiCache:
         return parsed if isinstance(parsed, dict) else None
 
     async def _set_json(self, key: str, value: dict[str, Any], ttl: int) -> None:
+        if not self._available:
+            return
         try:
             await self._client.set(
                 key,
@@ -84,6 +98,7 @@ class WikiCache:
                 ex=ttl,
             )
         except Exception as exception:
+            self._available = False
             self._log_unavailable(exception)
 
     @staticmethod

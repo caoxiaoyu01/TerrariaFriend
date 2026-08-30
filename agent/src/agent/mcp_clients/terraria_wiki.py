@@ -83,6 +83,10 @@ class TerrariaWikiMCPClient:
                 self._session.call_tool(WIKI_TOOL_NAME, arguments),
                 timeout=self._timeout_seconds,
             )
+        except TimeoutError as exception:
+            raise TerrariaWikiMCPError(
+                f"Terraria Wiki MCP 调用超过 {self._timeout_seconds:g} 秒"
+            ) from exception
         except Exception as exception:
             raise TerrariaWikiMCPError(
                 f"Terraria Wiki MCP 调用失败: {exception}"

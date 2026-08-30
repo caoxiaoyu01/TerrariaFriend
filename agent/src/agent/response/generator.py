@@ -15,7 +15,6 @@ from agent.models.game_snapshot import GameSnapshot
 from agent.models.execution import AgentExecutionResult, ToolHistoryMetadata
 from agent.reasoning.schema import ToolCall
 from agent.reasoning.tools import (
-    TOOL_DESCRIPTIONS,
     ToolExecutor,
     ToolPermissionError,
 )
@@ -113,14 +112,14 @@ class ResponseGenerator:
             if game_snapshot is None:
                 logger.warning(
                     "[ResponseGenerator] tool_calls=0 tool=%s error=missing_snapshot",
-                    call.name.value,
+                    call.name,
                 )
                 return self._execution(
                     RESPONSE_FALLBACK,
                     reasoning_rounds=1,
                     tool_history=[
                         ToolHistoryMetadata(
-                            name=call.name.value,
+                            name=call.name,
                             arguments=call.arguments_dict(),
                             status="error",
                             success=False,
@@ -140,7 +139,7 @@ class ResponseGenerator:
             except (ToolPermissionError, ValueError, KeyError) as exception:
                 logger.warning(
                     "[ResponseGenerator] tool_calls=0 tool=%s error=%s",
-                    call.name.value,
+                    call.name,
                     exception,
                 )
                 return self._execution(
@@ -148,7 +147,7 @@ class ResponseGenerator:
                     reasoning_rounds=1,
                     tool_history=[
                         ToolHistoryMetadata(
-                            name=call.name.value,
+                            name=call.name,
                             arguments=call.arguments_dict(),
                             status="error",
                             success=False,
@@ -159,7 +158,7 @@ class ResponseGenerator:
                 )
 
             tool_metadata = ToolHistoryMetadata(
-                name=call.name.value,
+                name=call.name,
                 arguments=call.arguments_dict(),
                 status="success",
                 success=True,
@@ -169,7 +168,7 @@ class ResponseGenerator:
 
             logger.info(
                 "[ResponseGenerator] tool_calls=1 tool=%s",
-                call.name.value,
+                call.name,
             )
             final_result = await self._generate_result(
                 {
@@ -180,7 +179,7 @@ class ResponseGenerator:
                     "decision_reason": decision_reason,
                     "available_tools": self._available_tools,
                     "tool_observation": {
-                        "name": call.name.value,
+                        "name": call.name,
                         "context_key": context_key,
                         "result": tool_result,
                     },
@@ -193,7 +192,7 @@ class ResponseGenerator:
             if final_result.status is ResponseStatus.NEED_TOOL:
                 logger.warning(
                     "[ResponseGenerator] second_tool_denied tool=%s",
-                    final_result.tool_calls[0].name.value,
+                    final_result.tool_calls[0].name,
                 )
                 return self._execution(
                     RESPONSE_FALLBACK,

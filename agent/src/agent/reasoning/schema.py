@@ -1,9 +1,7 @@
 from enum import Enum
-from typing import Annotated, Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
-
-from agent.memory.retrieval import MemoryToolArguments
+from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
 
 class ReasonerStatus(str, Enum):
@@ -11,6 +9,7 @@ class ReasonerStatus(str, Enum):
     FINAL = "FINAL"
 
 
+# 仅保留旧调用方的名称引用，新工具不需要在这里登记
 class GameContextToolName(str, Enum):
     GET_PLAYER_CONTEXT = "get_player_context"
     GET_COMBAT_CONTEXT = "get_combat_context"
@@ -22,66 +21,14 @@ class GameContextToolName(str, Enum):
     LOOKUP_TERRARIA_KNOWLEDGE = "lookup_terraria_knowledge"
 
 
-class WikiToolArguments(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    entity: str = Field(min_length=1)
-    intent: Literal[
-        "general",
-        "obtaining",
-        "usage",
-        "crafting",
-        "summoning",
-        "location",
-        "drops",
-        "mechanics",
-    ] = "general"
-    lang: Literal["zh", "en"] = "zh"
-
-    @field_validator("entity")
-    @classmethod
-    def normalize_entity(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("entity 不能为空")
-        return normalized
-
-
-class GameContextToolCall(BaseModel):
-    name: Literal[
-        GameContextToolName.GET_PLAYER_CONTEXT,
-        GameContextToolName.GET_COMBAT_CONTEXT,
-        GameContextToolName.GET_INVENTORY_CONTEXT,
-        GameContextToolName.GET_PROGRESS_CONTEXT,
-        GameContextToolName.GET_SCENE_CONTEXT,
-        GameContextToolName.GET_WORLD_CONTEXT,
-    ]
+class ToolCall(BaseModel):
+    name: str = Field(min_length=1)
     arguments: dict[str, Any] = Field(default_factory=dict)
 
     def arguments_dict(self) -> dict[str, object]:
         return self.arguments
 
 
-class WikiKnowledgeToolCall(BaseModel):
-    name: Literal[GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE]
-    arguments: WikiToolArguments
-
-    def arguments_dict(self) -> dict[str, object]:
-        return self.arguments.model_dump(mode="json")
-
-
-class MemoryContextToolCall(BaseModel):
-    name: Literal[GameContextToolName.GET_MEMORY_CONTEXT]
-    arguments: MemoryToolArguments
-
-    def arguments_dict(self) -> dict[str, object]:
-        return self.arguments.model_dump(mode="json")
-
-
-ToolCall = Annotated[
-    GameContextToolCall | WikiKnowledgeToolCall | MemoryContextToolCall,
-    Field(discriminator="name"),
-]
 TOOL_CALL_ADAPTER = TypeAdapter(ToolCall)
 
 

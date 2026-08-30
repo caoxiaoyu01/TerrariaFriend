@@ -1,5 +1,10 @@
 import json
-from typing import Any, Callable, Protocol
+import inspect
+import logging
+from dataclasses import dataclass
+from typing import Any, Awaitable, Callable, Literal, Protocol
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agent.decision.schema import DecisionAction
 from agent.models.game_snapshot import GameSnapshot
@@ -8,25 +13,38 @@ from agent.memory.retrieval import (
     MemoryContextTool,
     MemoryToolArguments,
 )
-from agent.reasoning.schema import GameContextToolName, WikiToolArguments
-from agent.reasoning.tool_policy import ToolPolicy
 
 
-ToolReader = Callable[[GameSnapshot], dict[str, Any]]
+logger = logging.getLogger("uvicorn.error")
 
 
-TOOL_DESCRIPTIONS = {
-    GameContextToolName.GET_PLAYER_CONTEXT.value: "读取玩家生命、魔力、防御、移动、呼吸、手持物品和 Buff",
-    GameContextToolName.GET_COMBAT_CONTEXT.value: "读取当前战斗、Boss、附近敌人和最近受伤状态",
-    GameContextToolName.GET_INVENTORY_CONTEXT.value: "读取快捷栏、护甲、饰品、恢复品、Boss 召唤物和空位摘要",
-    GameContextToolName.GET_PROGRESS_CONTEXT.value: "读取已击败 Boss、世界里程碑和已访问关键区域",
-    GameContextToolName.GET_SCENE_CONTEXT.value: "读取当前群系、层级、迷你群系、特殊区域和附近环境 Buff",
-    GameContextToolName.GET_WORLD_CONTEXT.value: "读取当前时间、月相、天气和世界事件状态",
-    GameContextToolName.GET_MEMORY_CONTEXT.value: MEMORY_TOOL_DESCRIPTION,
-    GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE.value: (
-        "查询可靠的 Terraria 外部知识，适合具体获取方式、配方、掉落、召唤条件、位置和游戏机制"
-    ),
-}
+class EmptyToolArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class WikiToolArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity: str = Field(min_length=1)
+    intent: Literal[
+        "general",
+        "obtaining",
+        "usage",
+        "crafting",
+        "summoning",
+        "location",
+        "drops",
+        "mechanics",
+    ] = "general"
+    lang: Literal["zh", "en"] = "zh"
+
+    @field_validator("entity")
+    @classmethod
+    def normalize_entity(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("entity 不能为空")
+        return normalized
 
 
 class TerrariaWikiToolClient(Protocol):
@@ -39,125 +57,303 @@ class TerrariaWikiToolClient(Protocol):
     ) -> dict[str, Any]: ...
 
 
-class GameContextTools:
-    def __init__(self) -> None:
-        self._readers: dict[GameContextToolName, tuple[str, ToolReader]] = {
-            GameContextToolName.GET_PLAYER_CONTEXT: ("player", _player_context),
-            GameContextToolName.GET_COMBAT_CONTEXT: ("combat", _combat_context),
-            GameContextToolName.GET_INVENTORY_CONTEXT: (
-                "inventory",
-                _inventory_context,
-            ),
-            GameContextToolName.GET_PROGRESS_CONTEXT: ("progress", _progress_context),
-            GameContextToolName.GET_SCENE_CONTEXT: ("scene", _scene_context),
-            GameContextToolName.GET_WORLD_CONTEXT: ("world", _world_context),
-        }
-
-    def execute(
-        self,
-        name: GameContextToolName,
-        arguments: dict[str, Any],
-        snapshot: GameSnapshot,
-    ) -> tuple[str, dict[str, Any]]:
-        if arguments:
-            raise ValueError(f"{name.value} 不接受参数")
-        context_key, reader = self._readers[name]
-        return context_key, reader(snapshot)
-
-
 class ToolPermissionError(PermissionError):
     pass
 
 
-class ToolExecutor:
-    def __init__(
-        self,
-        registry: GameContextTools | None = None,
-        policy: ToolPolicy | None = None,
-        wiki_client: TerrariaWikiToolClient | None = None,
-        memory_tool: MemoryContextTool | None = None,
-    ) -> None:
-        self.registry = registry or GameContextTools()
-        self.policy = policy or ToolPolicy()
-        self.wiki_client = wiki_client
-        self.memory_tool = memory_tool
+ToolHandler = Callable[
+    [BaseModel, GameSnapshot],
+    dict[str, Any] | BaseModel | Awaitable[dict[str, Any] | BaseModel],
+]
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    name: str
+    description: str
+    arguments_model: type[BaseModel]
+    allowed_modes: frozenset[DecisionAction]
+    handler: ToolHandler
+    context_key: str
+
+
+class ToolRegistry:
+    def __init__(self, specs: list[ToolSpec]) -> None:
+        self._specs = {spec.name: spec for spec in specs}
+        if len(self._specs) != len(specs):
+            raise ValueError("工具名称不能重复")
 
     @property
     def wiki_mcp_enabled(self) -> bool:
-        return self.policy.wiki_mcp_enabled
+        return "lookup_terraria_knowledge" in self._specs
 
-    def available_tool_descriptions(
-        self,
-        mode: DecisionAction,
-    ) -> dict[str, str]:
+    def available_tool_descriptions(self, mode: DecisionAction) -> dict[str, str]:
         return {
-            name.value: TOOL_DESCRIPTIONS[name.value]
-            for name in self.policy.allowed_tools(mode)
+            spec.name: spec.description
+            for spec in self._specs.values()
+            if mode in spec.allowed_modes
         }
 
     def available_tool_specs(
         self,
         mode: DecisionAction,
     ) -> dict[str, dict[str, Any]]:
-        wiki_arguments = WikiToolArguments.model_json_schema()["properties"]
-        memory_arguments = MemoryToolArguments.model_json_schema()["properties"]
         return {
-            name.value: {
-                "description": TOOL_DESCRIPTIONS[name.value],
-                "args": (
-                    wiki_arguments
-                    if name is GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE
-                    else memory_arguments
-                    if name is GameContextToolName.GET_MEMORY_CONTEXT
-                    else {}
-                ),
+            spec.name: {
+                "description": spec.description,
+                "args": spec.arguments_model.model_json_schema().get("properties", {}),
             }
-            for name in self.policy.allowed_tools(mode)
+            for spec in self._specs.values()
+            if mode in spec.allowed_modes
         }
+
+    def is_allowed(self, mode: DecisionAction, name: str) -> bool:
+        spec = self._specs.get(name)
+        allowed = spec is not None and mode in spec.allowed_modes
+        logger.info(
+            "[ToolPolicy] mode=%s tool=%s allowed=%s",
+            mode.value,
+            name,
+            str(allowed).lower(),
+        )
+        return allowed
 
     def execute(
         self,
         mode: DecisionAction,
-        name: GameContextToolName,
+        name: str,
         arguments: dict[str, Any],
         snapshot: GameSnapshot,
     ) -> tuple[str, dict[str, Any]]:
-        if not self.policy.is_allowed(mode, name):
-            raise ToolPermissionError(
-                f"{mode.value} 不允许调用工具 {name.value}"
-            )
-        return self.registry.execute(name, arguments, snapshot)
+        spec, validated = self._prepare(mode, name, arguments)
+        result = spec.handler(validated, snapshot)
+        if inspect.isawaitable(result):
+            raise RuntimeError(f"工具 {name} 需要异步调用")
+        return spec.context_key, _result_dict(result)
 
     async def execute_async(
         self,
         mode: DecisionAction,
-        name: GameContextToolName,
+        name: str,
         arguments: dict[str, Any],
         snapshot: GameSnapshot,
     ) -> tuple[str, dict[str, Any]]:
-        if not self.policy.is_allowed(mode, name):
-            raise ToolPermissionError(
-                f"{mode.value} 不允许调用工具 {name.value}"
-            )
-        if name is GameContextToolName.GET_MEMORY_CONTEXT:
-            if self.memory_tool is None:
-                raise RuntimeError("玩家记忆工具不可用")
-            validated_arguments = MemoryToolArguments.model_validate(arguments)
-            result = await self.memory_tool.get_memory_context(
-                **validated_arguments.model_dump(mode="json")
-            )
-            return "memory", result.model_dump(mode="json")
-        if name is not GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE:
-            return self.registry.execute(name, arguments, snapshot)
-        if self.wiki_client is None:
-            raise RuntimeError("Terraria Wiki MCP Client 不可用")
+        spec, validated = self._prepare(mode, name, arguments)
+        result = spec.handler(validated, snapshot)
+        if inspect.isawaitable(result):
+            result = await result
+        return spec.context_key, _result_dict(result)
 
-        validated_arguments = WikiToolArguments.model_validate(arguments)
-
-        result = await self.wiki_client.lookup_terraria_knowledge(
-            **validated_arguments.model_dump(mode="json"),
+    async def execute_into_context(
+        self,
+        mode: DecisionAction,
+        name: str,
+        arguments: dict[str, Any],
+        snapshot: GameSnapshot,
+        collected_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        context_key, result = await self.execute_async(
+            mode,
+            name,
+            arguments,
+            snapshot,
         )
-        return "terraria_wiki", result
+        collected_context[context_key] = result
+        return result
+
+    def _prepare(
+        self,
+        mode: DecisionAction,
+        name: str,
+        arguments: dict[str, Any],
+    ) -> tuple[ToolSpec, BaseModel]:
+        if not self.is_allowed(mode, name):
+            raise ToolPermissionError(f"{mode.value} 不允许调用工具 {name}")
+        spec = self._specs[name]
+        return spec, spec.arguments_model.model_validate(arguments)
+
+
+class ToolExecutor:
+    def __init__(
+        self,
+        registry: ToolRegistry | None = None,
+        *,
+        policy: Any | None = None,
+        wiki_client: TerrariaWikiToolClient | None = None,
+        memory_tool: MemoryContextTool | None = None,
+    ) -> None:
+        self.registry = registry or create_tool_registry(
+            wiki_client=wiki_client,
+            memory_tool=memory_tool,
+            include_wiki=(
+                wiki_client is not None
+                or bool(getattr(policy, "wiki_mcp_enabled", False))
+            ),
+        )
+
+    @property
+    def wiki_mcp_enabled(self) -> bool:
+        return self.registry.wiki_mcp_enabled
+
+    def available_tool_descriptions(self, mode: DecisionAction) -> dict[str, str]:
+        return self.registry.available_tool_descriptions(mode)
+
+    def available_tool_specs(
+        self,
+        mode: DecisionAction,
+    ) -> dict[str, dict[str, Any]]:
+        return self.registry.available_tool_specs(mode)
+
+    def execute(
+        self,
+        mode: DecisionAction,
+        name: str,
+        arguments: dict[str, Any],
+        snapshot: GameSnapshot,
+    ) -> tuple[str, dict[str, Any]]:
+        return self.registry.execute(mode, name, arguments, snapshot)
+
+    async def execute_async(
+        self,
+        mode: DecisionAction,
+        name: str,
+        arguments: dict[str, Any],
+        snapshot: GameSnapshot,
+    ) -> tuple[str, dict[str, Any]]:
+        return await self.registry.execute_async(mode, name, arguments, snapshot)
+
+    async def execute_into_context(
+        self,
+        mode: DecisionAction,
+        name: str,
+        arguments: dict[str, Any],
+        snapshot: GameSnapshot,
+        collected_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        return await self.registry.execute_into_context(
+            mode,
+            name,
+            arguments,
+            snapshot,
+            collected_context,
+        )
+
+
+def create_tool_registry(
+    *,
+    wiki_client: TerrariaWikiToolClient | None = None,
+    memory_tool: MemoryContextTool | None = None,
+    include_wiki: bool = False,
+) -> ToolRegistry:
+    respond_and_reason = frozenset({DecisionAction.RESPOND, DecisionAction.REASON})
+    reason_only = frozenset({DecisionAction.REASON})
+    specs = [
+        ToolSpec(
+            "get_player_context",
+            "读取玩家生命、魔力、防御、移动、呼吸、手持物品和 Buff",
+            EmptyToolArguments,
+            respond_and_reason,
+            _game_handler(_player_context),
+            "player",
+        ),
+        ToolSpec(
+            "get_combat_context",
+            "读取当前战斗、Boss、附近敌人和最近受伤状态",
+            EmptyToolArguments,
+            respond_and_reason,
+            _game_handler(_combat_context),
+            "combat",
+        ),
+        ToolSpec(
+            "get_inventory_context",
+            "读取快捷栏、护甲、饰品、恢复品、Boss 召唤物和空位摘要",
+            EmptyToolArguments,
+            reason_only,
+            _game_handler(_inventory_context),
+            "inventory",
+        ),
+        ToolSpec(
+            "get_progress_context",
+            "读取已击败 Boss、世界里程碑和已访问关键区域",
+            EmptyToolArguments,
+            reason_only,
+            _game_handler(_progress_context),
+            "progress",
+        ),
+        ToolSpec(
+            "get_scene_context",
+            "读取当前群系、层级、迷你群系、特殊区域和附近环境 Buff",
+            EmptyToolArguments,
+            respond_and_reason,
+            _game_handler(_scene_context),
+            "scene",
+        ),
+        ToolSpec(
+            "get_world_context",
+            "读取当前时间、月相、天气和世界事件状态",
+            EmptyToolArguments,
+            respond_and_reason,
+            _game_handler(_world_context),
+            "world",
+        ),
+        ToolSpec(
+            "get_memory_context",
+            MEMORY_TOOL_DESCRIPTION,
+            MemoryToolArguments,
+            reason_only,
+            _memory_handler(memory_tool),
+            "memory",
+        ),
+    ]
+    if include_wiki or wiki_client is not None:
+        specs.append(
+            ToolSpec(
+                "lookup_terraria_knowledge",
+                "查询可靠的 Terraria 外部知识，适合具体获取方式、配方、掉落、召唤条件、位置和游戏机制",
+                WikiToolArguments,
+                reason_only,
+                _wiki_handler(wiki_client),
+                "terraria_wiki",
+            )
+        )
+    return ToolRegistry(specs)
+
+
+def _game_handler(
+    reader: Callable[[GameSnapshot], dict[str, Any]],
+) -> ToolHandler:
+    def handle(_: BaseModel, snapshot: GameSnapshot) -> dict[str, Any]:
+        return reader(snapshot)
+
+    return handle
+
+
+def _memory_handler(memory_tool: MemoryContextTool | None) -> ToolHandler:
+    async def handle(arguments: BaseModel, _: GameSnapshot) -> BaseModel:
+        if memory_tool is None:
+            raise RuntimeError("玩家记忆工具不可用")
+        return await memory_tool.get_memory_context(
+            **arguments.model_dump(mode="json")
+        )
+
+    return handle
+
+
+def _wiki_handler(wiki_client: TerrariaWikiToolClient | None) -> ToolHandler:
+    async def handle(arguments: BaseModel, _: GameSnapshot) -> dict[str, Any]:
+        if wiki_client is None:
+            raise RuntimeError("Terraria Wiki MCP Client 不可用")
+        return await wiki_client.lookup_terraria_knowledge(
+            **arguments.model_dump(mode="json")
+        )
+
+    return handle
+
+
+def _result_dict(result: dict[str, Any] | BaseModel) -> dict[str, Any]:
+    if isinstance(result, BaseModel):
+        return result.model_dump(mode="json")
+    return result
 
 
 def tool_signature(name: str, arguments: dict[str, Any]) -> str:

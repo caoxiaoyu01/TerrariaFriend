@@ -1,62 +1,17 @@
-import logging
-
 from agent.decision.schema import DecisionAction
-from agent.reasoning.schema import GameContextToolName
-
-
-logger = logging.getLogger("uvicorn.error")
-
-
-RESPOND_ALLOWED_TOOLS = frozenset(
-    {
-        GameContextToolName.GET_PLAYER_CONTEXT,
-        GameContextToolName.GET_COMBAT_CONTEXT,
-        GameContextToolName.GET_SCENE_CONTEXT,
-        GameContextToolName.GET_WORLD_CONTEXT,
-    }
-)
-
-REASON_ALLOWED_TOOLS = frozenset(
-    {
-        GameContextToolName.GET_PLAYER_CONTEXT,
-        GameContextToolName.GET_COMBAT_CONTEXT,
-        GameContextToolName.GET_INVENTORY_CONTEXT,
-        GameContextToolName.GET_PROGRESS_CONTEXT,
-        GameContextToolName.GET_SCENE_CONTEXT,
-        GameContextToolName.GET_WORLD_CONTEXT,
-        GameContextToolName.GET_MEMORY_CONTEXT,
-    }
-)
+from agent.reasoning.tools import create_tool_registry
 
 
 class ToolPolicy:
+    """保留旧构造方式，工具权限仍以 Registry 为准"""
+
     def __init__(self, *, wiki_mcp_enabled: bool = False) -> None:
         self.wiki_mcp_enabled = wiki_mcp_enabled
+        self._registry = create_tool_registry(include_wiki=wiki_mcp_enabled)
 
-    def allowed_tools(
-        self,
-        mode: DecisionAction,
-    ) -> frozenset[GameContextToolName]:
-        if mode is DecisionAction.RESPOND:
-            return RESPOND_ALLOWED_TOOLS
-        if mode is not DecisionAction.REASON:
-            return frozenset()
-        if self.wiki_mcp_enabled:
-            return REASON_ALLOWED_TOOLS | {
-                GameContextToolName.LOOKUP_TERRARIA_KNOWLEDGE
-            }
-        return REASON_ALLOWED_TOOLS
+    def allowed_tools(self, mode: DecisionAction) -> frozenset[str]:
+        return frozenset(self._registry.available_tool_specs(mode))
 
-    def is_allowed(
-        self,
-        mode: DecisionAction,
-        tool_name: GameContextToolName,
-    ) -> bool:
-        allowed = tool_name in self.allowed_tools(mode)
-        logger.info(
-            "[ToolPolicy] mode=%s tool=%s allowed=%s",
-            mode.value,
-            tool_name.value,
-            str(allowed).lower(),
-        )
-        return allowed
+    def is_allowed(self, mode: DecisionAction, tool_name: object) -> bool:
+        name = getattr(tool_name, "value", tool_name)
+        return self._registry.is_allowed(mode, str(name))
