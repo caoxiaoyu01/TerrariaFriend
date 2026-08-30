@@ -74,10 +74,12 @@ namespace TerrariaFriend.AgentCommunication
 
 		public async Task SendWorldSessionEndedAsync(
 			DateTimeOffset occurredAt,
+			string worldId,
+			string sessionId,
 			CancellationToken cancellationToken = default)
 		{
 			string json = JsonSerializer.Serialize(
-				new { occurredAt },
+				new { occurredAt, worldId, sessionId },
 				JsonOptions);
 			using StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
 			using HttpResponseMessage response = await HttpClient.PostAsync(

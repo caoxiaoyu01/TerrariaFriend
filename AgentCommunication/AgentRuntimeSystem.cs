@@ -22,13 +22,17 @@ namespace TerrariaFriend.AgentCommunication
 		private readonly HashSet<GameEvent> _pendingGameEventKeys = new HashSet<GameEvent>();
 
 		// 后台线程只存放结果 界面由游戏主线程更新
-		private readonly ConcurrentQueue<(TriggerType TriggerType, AgentResponse Response)> _completedResponses = new();
+		private readonly ConcurrentQueue<(TriggerType TriggerType, string SessionId, AgentResponse Response)> _completedResponses = new();
 		private Task? _activeRequest;
+		private System.Threading.CancellationTokenSource? _activeRequestCancellation;
+		private string? _currentSessionId;
 
 		public override void OnWorldLoad()
 		{
+			CancelActiveRequest();
 			ClearPending();
 			TriggerSystem triggerSystem = ModContent.GetInstance<TriggerSystem>();
+			_currentSessionId = triggerSystem.CurrentSessionId;
 			triggerSystem.BoundarySignalDispatched -= HandleBoundarySignal;
 			triggerSystem.BoundarySignalDispatched += HandleBoundarySignal;
 		}
@@ -41,9 +45,15 @@ namespace TerrariaFriend.AgentCommunication
 			// 此时等待服务端保存并关闭当前记忆轨迹
 			try
 			{
+				TriggerSystem triggerSystem = ModContent.GetInstance<TriggerSystem>();
+				if (triggerSystem.CurrentWorldId == null || triggerSystem.CurrentSessionId == null) return;
 				using var timeout = new System.Threading.CancellationTokenSource(
 					AgentConfiguration.BoundarySignalTimeout);
-				_client.SendWorldSessionEndedAsync(DateTimeOffset.UtcNow, timeout.Token)
+				_client.SendWorldSessionEndedAsync(
+						DateTimeOffset.UtcNow,
+						triggerSystem.CurrentWorldId,
+						triggerSystem.CurrentSessionId,
+						timeout.Token)
 					.GetAwaiter()
 					.GetResult();
 				Mod.Logger.Info("[AgentRuntime] WorldSessionEnded delivered to L1.");
@@ -56,14 +66,22 @@ namespace TerrariaFriend.AgentCommunication
 
 		public override void OnWorldUnload()
 		{
+			CancelActiveRequest();
+			_currentSessionId = null;
 			ClearPending();
 		}
 
 		public override void PostUpdatePlayers()
 		{
+			_currentSessionId ??= ModContent.GetInstance<TriggerSystem>().CurrentSessionId;
 
 			// 先处理上一个请求的结果
-			if (_activeRequest?.IsCompleted == true) _activeRequest = null;
+			if (_activeRequest?.IsCompleted == true)
+			{
+				_activeRequest = null;
+				_activeRequestCancellation?.Dispose();
+				_activeRequestCancellation = null;
+			}
 			ProcessCompletedResponses();
 
 			if (Main.gameMenu) return;
@@ -77,7 +95,8 @@ namespace TerrariaFriend.AgentCommunication
 
 			// 请求放到后台执行 同一时间只发送一个
 			Mod.Logger.Info($"[AgentRuntime] sending {next.TriggerType}");
-			_activeRequest = SendAndCaptureAsync(next);
+			_activeRequestCancellation = new System.Threading.CancellationTokenSource();
+			_activeRequest = SendAndCaptureAsync(next, _activeRequestCancellation.Token);
 		}
 
 		// 玩家问题优先于游戏事件 周期检查不进入等待队列
@@ -136,19 +155,23 @@ namespace TerrariaFriend.AgentCommunication
 			return trigger;
 		}
 
-		private async Task SendAndCaptureAsync(TriggerEvent trigger)
+		private async Task SendAndCaptureAsync(
+			TriggerEvent trigger,
+			System.Threading.CancellationToken cancellationToken)
 		{
 			try
 			{
 				// 记录真正发送请求的时间
-				AgentResponse response = await _client.SendTriggerAsync(trigger).ConfigureAwait(false);
+				AgentResponse response = await _client.SendTriggerAsync(trigger, cancellationToken)
+					.ConfigureAwait(false);
 				// 把回复交回游戏主线程
-				_completedResponses.Enqueue((trigger.TriggerType, response));
+				_completedResponses.Enqueue((trigger.TriggerType, trigger.SessionId, response));
 			}
 			catch (Exception exception)
 			{
 				_completedResponses.Enqueue((
 					trigger.TriggerType,
+					trigger.SessionId,
 					new AgentResponse(
 						"ERROR",
 						null,
@@ -163,7 +186,12 @@ namespace TerrariaFriend.AgentCommunication
 		{
 			while (_completedResponses.TryDequeue(out var completed))
 			{
-				(TriggerType triggerType, AgentResponse response) = completed;
+				(TriggerType triggerType, string sessionId, AgentResponse response) = completed;
+				if (!string.Equals(sessionId, _currentSessionId, StringComparison.Ordinal))
+				{
+					Mod.Logger.Info($"Dropped stale Agent response from session {sessionId}.");
+					continue;
+				}
 				if (!response.Success)
 				{
 					Mod.Logger.Warn($"Agent request failed [{triggerType}]: {response.Error}");
@@ -185,6 +213,14 @@ namespace TerrariaFriend.AgentCommunication
 			_pendingUserQueries.Clear();
 			_pendingGameEvents.Clear();
 			_pendingGameEventKeys.Clear();
+		}
+
+		private void CancelActiveRequest()
+		{
+			_activeRequestCancellation?.Cancel();
+			_activeRequestCancellation?.Dispose();
+			_activeRequestCancellation = null;
+			_activeRequest = null;
 		}
 	}
 }

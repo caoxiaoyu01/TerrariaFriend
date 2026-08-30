@@ -9,6 +9,8 @@ namespace TerrariaFriend.Triggering
 	public sealed record TriggerEvent(
 		TriggerType TriggerType,
 		DateTimeOffset Timestamp,  // 触发时间
+		string WorldId,
+		string SessionId,
 		TriggerPriority Priority,
 		VitalsContext Vitals,
 		GameEvent? GameEvent = null,

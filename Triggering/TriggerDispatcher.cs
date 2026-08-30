@@ -15,6 +15,14 @@ namespace TerrariaFriend.Triggering
 		public event Action<TriggerEvent>? TriggerDispatched;
 
 		public int PendingCount => _pending.Count;
+		private string? _worldId;
+		private string? _sessionId;
+
+		public void SetSession(string worldId, string sessionId)
+		{
+			_worldId = worldId;
+			_sessionId = sessionId;
+		}
 
 		// 为三种触发创建对应事件
 		public TriggerEvent DispatchUserQuery(
@@ -30,6 +38,8 @@ namespace TerrariaFriend.Triggering
 			return Dispatch(new TriggerEvent(
 				TriggerType.USER_QUERY,
 				DateTimeOffset.UtcNow,
+				RequireIdentity(_worldId, nameof(_worldId)),
+				RequireIdentity(_sessionId, nameof(_sessionId)),
 				TriggerPriority.HIGH,
 				vitals,
 				UserQuery: query,
@@ -45,6 +55,8 @@ namespace TerrariaFriend.Triggering
 			return Dispatch(new TriggerEvent(
 				TriggerType.GAME_EVENT,
 				DateTimeOffset.UtcNow,
+				RequireIdentity(_worldId, nameof(_worldId)),
+				RequireIdentity(_sessionId, nameof(_sessionId)),
 				TriggerPriority.NORMAL,
 				vitals,
 				GameEvent: gameEvent,
@@ -60,6 +72,8 @@ namespace TerrariaFriend.Triggering
 			return Dispatch(new TriggerEvent(
 				TriggerType.PERIODIC,
 				DateTimeOffset.UtcNow,
+				RequireIdentity(_worldId, nameof(_worldId)),
+				RequireIdentity(_sessionId, nameof(_sessionId)),
 				TriggerPriority.LOW,
 				vitals,
 				PeriodicSummary: summary,
@@ -74,6 +88,13 @@ namespace TerrariaFriend.Triggering
 		public void Clear()
 		{
 			while (_pending.TryDequeue(out _)) { }
+		}
+
+		private static string RequireIdentity(string? value, string name)
+		{
+			return !string.IsNullOrWhiteSpace(value)
+				? value
+				: throw new InvalidOperationException($"{name} is not initialized");
 		}
 
 		private TriggerEvent Dispatch(TriggerEvent trigger)

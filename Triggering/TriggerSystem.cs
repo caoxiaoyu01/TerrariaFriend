@@ -23,6 +23,8 @@ namespace TerrariaFriend.Triggering
 		private readonly PeriodicTriggerSource _periodicSource = new PeriodicTriggerSource();
 		private readonly TriggerDispatcher _dispatcher = new TriggerDispatcher();
 		private float? _previousVitalsHpRatio;
+		public string? CurrentWorldId { get; private set; }
+		public string? CurrentSessionId { get; private set; }
 
 		// 离开世界时立即保存 不放进马上会被清空的普通队列
 		public event Action<GameEvent>? BoundarySignalDispatched;
@@ -30,12 +32,17 @@ namespace TerrariaFriend.Triggering
 		public override void OnWorldLoad()
 		{
 			Reset();
+			CurrentWorldId = Main.ActiveWorldFileData.UniqueId.ToString("D");
+			CurrentSessionId = Guid.NewGuid().ToString("D");
+			_dispatcher.SetSession(CurrentWorldId, CurrentSessionId);
 		}
 
 		public override void OnWorldUnload()
 		{
 			DispatchBoundarySignal(new GameEvent(GameEventType.WorldSessionEnded));
 			Reset();
+			CurrentWorldId = null;
+			CurrentSessionId = null;
 		}
 
 		public override void PostUpdatePlayers()
