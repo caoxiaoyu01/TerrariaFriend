@@ -37,10 +37,25 @@ namespace TerrariaFriend.GameState.Collectors
 				player.velocity.Y * TicksPerSecond / PixelsPerTile,
 				player.direction,
 				player.mount.Active,
+				CreateMountSummary(player),
 				player.breath,
 				player.breathMax,
 				InventoryCollector.CreateItemSummary(player.HeldItem),
 				buffs);
+		}
+
+		private static MountSummary CreateMountSummary(Player player)
+		{
+			if (!player.mount.Active)
+			{
+				return null;
+			}
+
+			int buffType = player.mount.BuffType;
+			return new MountSummary(
+				player.mount.Type,
+				buffType,
+				buffType > 0 ? Lang.GetBuffName(buffType) : null);
 		}
 	}
 }

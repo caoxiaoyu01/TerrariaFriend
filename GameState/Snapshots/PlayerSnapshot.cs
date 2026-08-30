@@ -20,13 +20,19 @@ namespace TerrariaFriend.GameState.Snapshots
 		float VelocityTilesPerSecondX,
 		float VelocityTilesPerSecondY,
 		int Direction,
-		// 有没有坐骑
+		// 当前骑乘状态和坐骑身份
 		bool IsMounted,
+		MountSummary Mount,
 		// 憋气上限
 		int Breath,
 		int MaxBreath,
 		ItemSummary HeldItem,
 		IReadOnlyList<BuffSummary> Buffs);
+
+	public sealed record MountSummary(
+		int TypeId,
+		int BuffTypeId,
+		string Name);
 
 	public sealed record BuffSummary(
 		int TypeId,

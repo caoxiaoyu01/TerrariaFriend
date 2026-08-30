@@ -250,7 +250,7 @@ def create_tool_registry(
     specs = [
         ToolSpec(
             "get_player_context",
-            "读取玩家生命、魔力、防御、移动、呼吸、手持物品和 Buff",
+            "读取玩家生命、魔力、防御、移动、呼吸、当前坐骑、手持物品和 Buff",
             EmptyToolArguments,
             respond_and_reason,
             _game_handler(_player_context),
@@ -387,6 +387,7 @@ def _player_context(snapshot: GameSnapshot) -> dict[str, Any]:
             "velocityTilesPerSecondY",
             "direction",
             "isMounted",
+            "mount",
             "breath",
             "maxBreath",
             "heldItem",
