@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agent.models.trigger import (
     EventContext,
@@ -132,6 +132,9 @@ class DecisionInput(BaseModel):
 # 模型输出检查通过后才能进入下一步
 class DecisionResult(BaseModel):
     action: DecisionAction
+    required_contexts: list[
+        Literal["player", "combat", "scene", "world"]
+    ] = Field(default_factory=list, max_length=1)
     reason: str
 
     @field_validator("reason")
@@ -141,3 +144,9 @@ class DecisionResult(BaseModel):
         if not reason:
             raise ValueError("reason 不能为空")
         return reason
+
+    @model_validator(mode="after")
+    def validate_required_contexts(self) -> "DecisionResult":
+        if self.action is not DecisionAction.RESPOND and self.required_contexts:
+            raise ValueError("只有 RESPOND 可以指定 required_contexts")
+        return self

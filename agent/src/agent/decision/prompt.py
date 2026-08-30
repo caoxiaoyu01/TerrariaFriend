@@ -27,7 +27,7 @@ RESPOND
 
 1. 当前 Context 已经足够直接回答；
 
-2. 只缺少一个当前游戏事实，并且调用一次以下任一基础工具即可回答：
+2. 只缺少一个当前游戏事实，并且读取一类以下基础上下文即可回答：
 
 Player Context：
 - 生命、魔力、防御
@@ -59,28 +59,28 @@ World Context：
 典型问题：
 
 “我现在在哪？”
-→ RESPOND
+→ RESPOND + required_contexts: ["scene"]
 
 “我现在拿着什么？”
-→ RESPOND
+→ RESPOND + required_contexts: ["player"]
 
 “我还有多少血？”
-→ RESPOND
+→ RESPOND + required_contexts: ["player"]
 
 “我中了什么 Debuff？”
-→ RESPOND
+→ RESPOND + required_contexts: ["player"]
 
 “附近有多少敌人？”
-→ RESPOND
+→ RESPOND + required_contexts: ["combat"]
 
 “Boss 还剩多少血？”
-→ RESPOND
+→ RESPOND + required_contexts: ["combat"]
 
 “现在几点？”
-→ RESPOND
+→ RESPOND + required_contexts: ["world"]
 
 “现在下雨吗？”
-→ RESPOND
+→ RESPOND + required_contexts: ["world"]
 
 
 REASON
@@ -122,7 +122,7 @@ REASON
 
 核心原则：
 
-一次 Player / Scene / Combat / World 查询即可解决
+一类 Player / Scene / Combat / World 上下文即可解决
 → RESPOND
 
 需要 Inventory / Progress、多个信息来源、
@@ -221,7 +221,11 @@ SceneFeatureEntered：
 - USER_QUERY 通常不能 IGNORE
 - GAME_EVENT 和 PERIODIC 可以 IGNORE
 - 不要猜测输入中没有提供的事实
-- 一次 Player / Scene / Combat / World 查询即可解决 → RESPOND
+- 一类 Player / Scene / Combat / World 上下文即可解决 → RESPOND
+- RESPOND 必须在 required_contexts 中标明需要的最小上下文
+- 当前 Trigger 已经足够回答时 required_contexts 必须为 []
+- required_contexts 只能选 player、combat、scene、world
+- 需要 Inventory、Progress、Wiki、Memory 或多类上下文时必须选 REASON
 - Inventory / Progress / 多工具 / 多步推理 → REASON
 - PERIODIC 默认保持安静
 
@@ -233,7 +237,16 @@ SceneFeatureEntered：
 
 {
   "action": "IGNORE | RESPOND | REASON",
+  "required_contexts": [],
   "reason": "判断所属执行模式的简短中文原因"
+}
+
+RESPOND 需要当前玩家状态时示例：
+
+{
+  "action": "RESPOND",
+  "required_contexts": ["player"],
+  "reason": "需要当前玩家生命值"
 }
 
 不要输出其他内容。

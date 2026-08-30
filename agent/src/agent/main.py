@@ -23,7 +23,7 @@ from agent.memory.retrieval import (
     RecentMemoryRetriever,
     world_memory_group_id,
 )
-from agent.models.execution import AgentExecutionResult
+from agent.models.execution import AgentExecutionResult, ToolHistoryMetadata
 from agent.models.trigger import (
     AgentResponse,
     TriggerRequest,
@@ -105,9 +105,14 @@ tool_executor = ToolExecutor(
     wiki_client=wiki_mcp_client,
     memory_tool=memory_context_tool,
 )
+RESPOND_CONTEXT_TO_TOOL = {
+    "player": "get_player_context",
+    "combat": "get_combat_context",
+    "scene": "get_scene_context",
+    "world": "get_world_context",
+}
 response_generator = ResponseGenerator(
     response_role_client,
-    tool_executor=tool_executor,
 )
 reasoning_graph = ReasoningGraph(
     Reasoner(
@@ -265,6 +270,43 @@ def _apply_health_rule(
     )
 
 
+def _prepare_respond_context(
+    required_contexts: list[str],
+    trigger: TriggerRequest,
+) -> tuple[dict[str, dict[str, object]], list[ToolHistoryMetadata]]:
+    if not required_contexts:
+        return {}, []
+    if trigger.game_snapshot is None:
+        raise ResponseGeneratorError("RESPOND 请求缺少 game_snapshot")
+
+    prepared: dict[str, dict[str, object]] = {}
+    tool_history: list[ToolHistoryMetadata] = []
+    for context_name in required_contexts:
+        tool_name = RESPOND_CONTEXT_TO_TOOL[context_name]
+        started_at = time.perf_counter()
+        context_key, result = tool_executor.execute(
+            DecisionAction.RESPOND,
+            tool_name,
+            {},
+            trigger.game_snapshot,
+        )
+        prepared[context_key] = result
+        tool_history.append(
+            ToolHistoryMetadata(
+                name=tool_name,
+                status="success",
+                success=True,
+                round=1,
+                latency_ms=(time.perf_counter() - started_at) * 1000,
+            )
+        )
+    logger.info(
+        "[RespondRuntime] required_contexts=%s",
+        required_contexts,
+    )
+    return prepared, tool_history
+
+
 @app.post("/agent/trigger", response_model=AgentResponse)
 async def handle_trigger(
     trigger: TriggerRequest,
@@ -322,8 +364,9 @@ async def handle_trigger(
 
     latency = time.perf_counter() - started_at
     logger.info(
-        "[DecisionRoute] result\naction=%s\nreason=%s\nmodel=%s\nlatency=%.2fs",
+        "[DecisionRoute] result\naction=%s\nrequired_contexts=%s\nreason=%s\nmodel=%s\nlatency=%.2fs",
         result.action.value,
+        result.required_contexts,
         result.reason,
         decision_source,
         latency,
@@ -334,10 +377,17 @@ async def handle_trigger(
             execution = None
             message = None
         elif result.action is DecisionAction.RESPOND:
+            prepared_context, respond_tool_history = _prepare_respond_context(
+                result.required_contexts,
+                trigger,
+            )
             execution = await generator.generate(
                 decision_input,
                 result.reason,
-                trigger.game_snapshot,
+                prepared_context,
+            )
+            execution = execution.model_copy(
+                update={"tool_history": respond_tool_history}
             )
             message = execution.message
         else:
