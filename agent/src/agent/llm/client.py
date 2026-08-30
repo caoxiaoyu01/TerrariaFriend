@@ -148,8 +148,9 @@ class RoleLLMClient:
         output_schema: dict[str, Any],
         include_output_schema: bool = True,
     ) -> LLMCompletion:
+        # 固定输出结构放在动态输入前 提高前缀缓存命中率
         payload = (
-            {"input": input_data, "output_schema": output_schema}
+            {"output_schema": output_schema, "input": input_data}
             if include_output_schema
             else input_data
         )
@@ -277,6 +278,7 @@ def _compact_text(value: str) -> str:
     return f"{compact[:MAX_PROVIDER_ERROR_CHARS]}..."
 
 
+# 固定提示词放前面 动态输入放后面
 def _messages(
     system_prompt: str,
     input_data: dict[str, Any],

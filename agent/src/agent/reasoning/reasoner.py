@@ -42,11 +42,12 @@ class Reasoner:
         remaining_tool_calls: int,
         force_final: bool,
     ) -> ReasonerResult:
+        # 稳定的工具定义放在动态状态前 提高前缀缓存命中率
         input_data: dict[str, Any] = {
+            "available_tools": self._available_tools,
             "task": state["initial_context"],
             "collected_context": state["collected_context"],
             "tool_history": state["tool_history"],
-            "available_tools": self._available_tools,
             "limits": {
                 "reasoning_round": round_number,
                 "remaining_tool_calls": remaining_tool_calls,
