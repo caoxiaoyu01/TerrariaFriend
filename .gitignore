@@ -90,3 +90,6 @@ spike/
 # 本机 Python/工具配置
 agent/.env.example
 agent/.python-version
+agent/README.md
+agent/.env
+agent/data
