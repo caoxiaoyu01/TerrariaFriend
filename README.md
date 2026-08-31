@@ -137,7 +137,7 @@ Reasoner 可以通过统一的 Memory Retrieval 查询近期或长期记忆，�
 | 游戏客户端 | C# / tModLoader |
 | Agent 服务 | Python 3.12 / FastAPI / LangGraph |
 | Python 环境管理 | uv |
-| LLM | SiliconFlow / DeepSeek 兼容接口 |
+| LLM | SiliconFlow / DeepSeek |
 | 当前主要模型 | DeepSeek V4 Flash |
 | 长期记忆 | Graphiti + FalkorDB |
 | Embedding / Reranker | Gemini |
@@ -177,7 +177,7 @@ TerrariaFriend/
 │   │   ├── trace/         # Episode / Trace / L1
 │   │   ├── memory/        # L2 Formation 与 Retrieval
 │   │   └── mcp_servers/   # Terraria Wiki MCP
-│   └── tests/
+│   └── evals/             # rag 和 context builder 有效性评估
 ├── TerrariaFriend.csproj
 └── README.md
 ```
